@@ -1,0 +1,14 @@
+{
+  "excluded": [
+    { "pattern": "\\b(tekstil|textile|kain|konveksi|pakaian|fashion|busana|hijab|baju|sepatu|sandal)\\b", "reason": "tekstil atau pakaian" },
+    { "pattern": "\\b(ponsel|handphone|gadget|elektronik|komputer|laptop|aksesoris hp|alat tulis|stationery)\\b", "reason": "elektronik atau alat tulis" },
+    { "pattern": "\\b(olahraga|sport|optik|kacamata|perhiasan|furniture|mebel|toko bunga|parfum)\\b", "reason": "toko khusus non-pangan" },
+    { "pattern": "\\b(kopi|coffee|cafe|kafe|restoran|restaurant|bakery|roti|donat|es krim|kebab|rumah makan|kedai)\\b", "reason": "usaha makanan siap saji" },
+    { "pattern": "\\b(salon|barbershop|bengkel|laundry|apotek|farmasi|klinik|pet shop|hewan peliharaan|hotel|penginapan|rental|travel|gadai|percetakan)\\b", "reason": "jasa atau usaha di luar target" }
+  ],
+  "included": [
+    { "pattern": "\\b(sembako|kelontong)\\b", "reason": "sembako atau kelontong" },
+    { "pattern": "\\b(minimarket|mini market|swalayan|supermarket|toserba|grocery|convenience store)\\b", "reason": "swalayan atau minimarket" },
+    { "pattern": "\\b(toko bahan makanan|grosir makanan|grosir sembako|bahan pokok)\\b", "reason": "bahan makanan pokok" }
+  ]
+}

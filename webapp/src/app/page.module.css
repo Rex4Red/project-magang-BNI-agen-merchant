@@ -1,0 +1,20 @@
+.page{min-height:100dvh;display:grid;place-items:center;padding:40px 20px;background:#f6f5f2;color:#34302a}
+.login{width:100%;max-width:400px}
+.brand{display:flex;justify-content:center;align-items:center;gap:14px;margin-bottom:28px}
+.brand img{display:block;width:280px;max-width:100%;height:auto}
+.card{padding:32px;background:#fffdf9;border:1px solid #e3ddd3;border-radius:10px}
+.card h1{margin:0 0 8px;font-size:26px;line-height:1.2;letter-spacing:-.035em;font-weight:650}
+.subtitle{margin:0 0 26px;color:#81786c;font-size:13px;line-height:1.6}
+.card form{display:flex;flex-direction:column}
+.card label{font-size:12px;font-weight:600;margin-bottom:8px;color:#51483c}
+.card input{width:100%;height:46px;padding:11px 13px;border:1px solid #dcd4c8;border-radius:5px;background:#fff;color:#34302a;font:inherit;font-size:14px;margin-bottom:19px}
+.card input::placeholder{color:#aaa092}
+.card input:focus-visible,.card button:focus-visible,.demo summary:focus-visible{outline:2px solid #b96538;outline-offset:3px}
+.card button{height:46px;border:0;border-radius:5px;background:#b96538;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:3px;transition:background .15s}
+.card button:hover{background:#a4562e}
+.error{color:#a0443e;font-size:12px;line-height:1.5;margin:0 0 14px}
+.demo{border-top:1px solid #eee7de;margin-top:24px;padding-top:17px;color:#81786c;font-size:12px}
+.demo summary{cursor:pointer;width:fit-content;padding:4px 0}
+.demo p{line-height:1.8;margin:10px 0 0}
+.footer{text-align:center;color:#9a9082;font-size:11px;margin:22px 0 0}
+@media(max-width:480px){.page{padding:28px 20px}.card{padding:26px 22px}.brand{margin-bottom:24px}}

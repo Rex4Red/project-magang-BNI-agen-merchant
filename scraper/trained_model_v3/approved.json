@@ -1,0 +1,5 @@
+{
+  "selected_for": "higher precision on unknown business types",
+  "threshold": 0.7,
+  "selection_basis": "validation set grouped by store"
+}

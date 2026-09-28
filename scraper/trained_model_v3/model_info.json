@@ -1,0 +1,30 @@
+{
+  "preprocessing": "legacy_0_1",
+  "decision_threshold": 0.7,
+  "evaluation_caveat": "Model v3 starts from the old model weights. The newly grouped validation/test images may have appeared in the old model's image-level training split; these scores are not an independent estimate of real-world accuracy.",
+  "class_indices": {
+    "non_potensial": 0,
+    "potensial": 1
+  },
+  "dataset": "dataset_curated_v2",
+  "split_unit": "store",
+  "candidate_on_same_test": {
+    "accuracy": 0.8289473684210527,
+    "balanced_accuracy": 0.8320557491289199,
+    "true_negative": 65,
+    "false_positive": 17,
+    "false_negative": 9,
+    "true_positive": 61
+  },
+  "threshold_0_7_on_same_test": {
+    "accuracy": 0.8486842105263158,
+    "true_negative": 73,
+    "false_positive": 9,
+    "false_negative": 14,
+    "true_positive": 56
+  },
+  "epochs": 3,
+  "train_images": 1116,
+  "validation_images": 136,
+  "test_images": 152
+}

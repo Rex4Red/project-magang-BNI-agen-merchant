@@ -1,0 +1,30 @@
+{
+  "preprocessing": "mobilenet_v2",
+  "class_indices": {
+    "non_potensial": 0,
+    "potensial": 1
+  },
+  "dataset": "dataset_curated_v2",
+  "split_unit": "store",
+  "baseline_on_same_test": {
+    "accuracy": 0.8223684210526315,
+    "balanced_accuracy": 0.8343205574912893,
+    "true_negative": 56,
+    "false_positive": 26,
+    "false_negative": 1,
+    "true_positive": 69
+  },
+  "candidate_on_same_test": {
+    "accuracy": 0.756578947368421,
+    "balanced_accuracy": 0.7587108013937283,
+    "true_negative": 60,
+    "false_positive": 22,
+    "false_negative": 15,
+    "true_positive": 55
+  },
+  "epochs_phase1": 5,
+  "epochs_phase2": 3,
+  "train_images": 1116,
+  "validation_images": 136,
+  "test_images": 152
+}

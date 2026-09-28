@@ -1,0 +1,19 @@
+{
+  "class_indices": {
+    "non_potensial": 0,
+    "potensial": 1
+  },
+  "labels": {
+    "0": "non_potensial",
+    "1": "potensial"
+  },
+  "metrics": {
+    "phase1_val_accuracy": 0.8588235378265381,
+    "phase2_val_accuracy": 0.7823529243469238,
+    "test_accuracy": 0.8160919547080994,
+    "test_loss": 0.40593409538269043,
+    "total_train_images": 1373,
+    "total_val_images": 170,
+    "total_test_images": 174
+  }
+}

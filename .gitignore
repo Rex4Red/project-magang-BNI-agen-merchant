@@ -1,0 +1,40 @@
+
+AGENT.md
+CLAUDE.md
+.agent-mem/
+
+# Auto-generated agent rules (personalized per developer)
+.brainsync/agent-rules.md
+
+# Auto-generated AI agent exclusions
+.cursorrules
+.clineRules
+.agent/
+.windsurfrules
+.gemini/
+.cline/
+
+# Local configuration and editor state
+.env
+.env.*
+!.env.example
+.mcp.json
+.agents/
+.brainsync/
+.cursor/
+.vscode/
+**/CLAUDE.md
+
+# Dependencies, caches, and generated output
+node_modules/
+__pycache__/
+*.pyc
+*.log
+.next/
+*.tsbuildinfo
+
+# Local training data and prediction samples
+scraper/dataset*/
+scraper/prediction_samples/
+scraper/temp_predict.jpg
+scraper/trained_model/store_classifier_saved_model/

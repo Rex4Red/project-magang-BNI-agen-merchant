@@ -1,0 +1,16 @@
+{
+  "name": "bni-gmaps-scraper",
+  "version": "1.0.0",
+  "description": "Google Maps image scraper for BNI store classification training data",
+  "main": "scrape-images.js",
+  "scripts": {
+    "scrape": "node scrape-images.js",
+    "scrape:potensial": "node scrape-images.js --label potensial",
+    "scrape:non-potensial": "node scrape-images.js --label non_potensial"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}
