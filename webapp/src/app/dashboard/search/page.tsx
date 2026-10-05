@@ -5,10 +5,10 @@ import styles from "./page.module.css";
 import { Icon } from "@/components/Icon";
 
 import Link from "next/link";
-import { polygonError, type AreaPoint } from "@/lib/search-polygon";
+import { polygonError } from "@/lib/search-polygon";
 import { saveVisitList, useVisitLists, displayCategory, displayAddress, type Prospect as SearchResult } from "@/lib/canvasing";
 
-type Classification = NonNullable<SearchResult["classification"]>;
+import { useAgentSearchSession, useAgentSearchField } from "@/lib/agent-search-session";
 
 const isPotensial = (store: SearchResult): boolean =>
   store.classification?.label === "potensial";
@@ -25,6 +25,7 @@ const classificationText = (store: SearchResult): string => {
   }
   if (store.classification?.label === "potensial") return "Potensial (AI)";
   if (store.classification?.label === "non_potensial") return "Non-Potensial (AI)";
+  if (store.classification?.reason === "low_confidence") return "Perlu ditinjau: model belum yakin";
   if (store.classification?.reason === "business_unknown") return "Perlu verifikasi jenis usaha";
   if (!store.photoUrl || store.classification?.reason === "no_photo") return "Tanpa foto";
   if (store.classification?.reason === "image_error") return "Foto gagal dibaca";
@@ -62,29 +63,33 @@ type LeafletLibrary = typeof import("leaflet");
 let L: LeafletLibrary | null = null;
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("");
+  const { startSearch } = useAgentSearchSession();
+  const [query, setQuery] = useAgentSearchField('query');
   const { lists: visitLists, error: storageError } = useVisitLists();
-  const [chosen, setChosen] = useState<string[]>([]);
+  const [chosen, setChosen] = useAgentSearchField('chosen');
   const [saveOpen, setSaveOpen] = useState(false);
   const [listName, setListName] = useState("");
   const [visitArea, setVisitArea] = useState("");
   const [targetList, setTargetList] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
-  const [searchContext, setSearchContext] = useState<{ mode: "area" | "map"; area: string; bounds?: string; polygon?: AreaPoint[] }>({ mode: "area", area: "" });
-  const [searchMode, setSearchMode] = useState<"area" | "map">("area");
-  const [polygon, setPolygon] = useState<AreaPoint[]>([]);
-  const [drawing, setDrawing] = useState(false);
+  const [searchContext] = useAgentSearchField('searchContext');
+  const [searchMode, setSearchMode] = useAgentSearchField('searchMode');
+  const [polygon, setPolygon] = useAgentSearchField('polygon');
+  const [drawing, setDrawing] = useAgentSearchField('drawing');
   const areaError = polygonError(polygon);
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isClassifying, setIsClassifying] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [error, setError] = useState("");
-  const [classificationError, setClassificationError] = useState("");
-  const [coverageNotice, setCoverageNotice] = useState("");
-  const [filterPotensial, setFilterPotensial] = useState(false);
-  const [selectedStore, setSelectedStore] = useState<SearchResult | null>(null);
+  const [results] = useAgentSearchField('results');
+  const [isSearching] = useAgentSearchField('isSearching');
+  const [isClassifying] = useAgentSearchField('isClassifying');
+  const [hasSearched] = useAgentSearchField('hasSearched');
+  const [error, setError] = useAgentSearchField('error');
+  const [classificationError] = useAgentSearchField('classificationError');
+  const [coverageNotice] = useAgentSearchField('coverageNotice');
+  const [searchProgress] = useAgentSearchField('searchProgress');
+  const [filterPotensial, setFilterPotensial] = useAgentSearchField('filterPotensial');
+  const [selectedStore, setSelectedStore] = useAgentSearchField('selectedStore');
+  const [mapView, setMapView] = useAgentSearchField('mapView');
+  const initialMapView = useRef(mapView);
   const [focusRequest, setFocusRequest] = useState(0);
   const fitNextResults = useRef(false);
   const mapRef = useRef<HTMLDivElement>(null);
@@ -95,7 +100,7 @@ export default function SearchPage() {
   const selectStore = useCallback((store: SearchResult) => {
     setSelectedStore(store);
     setFocusRequest((request) => request + 1);
-  }, []);
+  }, [setSelectedStore]);
 
   const selectedLat = selectedStore?.lat;
   const selectedLng = selectedStore?.lng;
@@ -155,7 +160,7 @@ export default function SearchPage() {
 
     const map = L.map(mapRef.current, {
       zoomControl: true,
-    }).setView([-7.7713, 110.3771], 13); // Yogyakarta default
+    }).setView(initialMapView.current ? [initialMapView.current.lat, initialMapView.current.lng] : [-7.7713, 110.3771], initialMapView.current?.zoom ?? 13);
 
     // OpenStreetMap tile layer
     L.tileLayer(
@@ -167,17 +172,32 @@ export default function SearchPage() {
     ).addTo(map);
 
     leafletMap.current = map;
+    const rememberView = () => {
+      const center = map.getCenter();
+      setMapView({ lat: center.lat, lng: center.lng, zoom: map.getZoom() });
+    };
+    map.on('moveend', rememberView);
     const resizeObserver = new ResizeObserver(() => map.invalidateSize());
     resizeObserver.observe(mapRef.current);
 
     return () => {
       resizeObserver.disconnect();
+      map.off('moveend', rememberView);
       if (leafletMap.current) {
         leafletMap.current.remove();
         leafletMap.current = null;
       }
     };
-  }, [mapReady]);
+  }, [mapReady, setMapView]);
+
+  useEffect(() => {
+    const map = leafletMap.current;
+    if (!mapReady || !map || !mapView) return;
+    const center = map.getCenter();
+    if (Math.abs(center.lat - mapView.lat) > 1e-7 || Math.abs(center.lng - mapView.lng) > 1e-7 || map.getZoom() !== mapView.zoom) {
+      map.setView([mapView.lat, mapView.lng], mapView.zoom, { animate: false });
+    }
+  }, [mapReady, mapView]);
 
   // Update markers when results change
   const updateMarkers = useCallback(
@@ -270,7 +290,7 @@ export default function SearchPage() {
     map.on('click', click);
     if (drawing) map.doubleClickZoom.disable();
     return () => { map.off('click', click); group.remove(); map.doubleClickZoom.enable(); };
-  }, [mapReady, searchMode, drawing, polygon, areaError, isSearching, isClassifying]);
+  }, [mapReady, searchMode, drawing, polygon, areaError, isSearching, isClassifying, setPolygon]);
 
   const showAllPotentialStores = () => {
     const map = leafletMap.current;
@@ -306,99 +326,11 @@ export default function SearchPage() {
     } else {
       params.set("area", query.trim());
     }
-    setIsSearching(true);
-    setHasSearched(true);
-    setError("");
-    setClassificationError("");
-    setCoverageNotice("");
-    setResults([]);
-    setChosen([]);
     setSaveOpen(false);
     setSaveNotice("");
-    setSelectedStore(null);
-
-    try {
-      const res = await fetch(`/api/v1/search?${params}`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Terjadi kesalahan saat mencari");
-        return;
-      }
-      if (searchMode === "area" && data.area && leafletMap.current) {
-        leafletMap.current.setView([data.area.lat, data.area.lng], data.area.radiusKm ? 15 : 12);
-      }
-
-      const stores: SearchResult[] = (data.results || []).map((store: SearchResult) => ({
-        ...store,
-        classification: store.photoUrl ? undefined : {
-          label: "unavailable" as const, confidence: null, reason: "no_photo" as const,
-        },
-      }));
-      fitNextResults.current = searchMode === "area";
-      setSearchContext({ mode: searchMode, area: searchMode === "area" ? query.trim() : "", bounds: requestedBounds || undefined, polygon: searchMode === "map" ? polygon : undefined });
-      setResults(stores);
-      if (searchMode === "map" && data.coverage) setCoverageNotice(`Pencarian dari ${data.coverage.points} titik area · ${data.coverage.successfulQueries}/${data.coverage.totalQueries} pencarian selesai. Hasil bergantung pada toko yang ditampilkan Google Maps.`);
-      if (data.warning) setClassificationError(data.warning);
-      setIsSearching(false);
-
-      const photoStores = stores.filter((store) => store.photoUrl);
-      if (photoStores.length > 0) {
-        setIsClassifying(true);
-        let failedBatches = 0;
-        try {
-          for (let offset = 0; offset < photoStores.length; offset += 25) {
-            const batch = photoStores.slice(offset, offset + 25);
-            let predictions: Map<string, Classification>;
-            try {
-              const classificationResponse = await fetch("/api/v1/classify", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ items: batch.map((store) => ({
-                  id: store.id, photoUrl: store.photoUrl,
-                  name: store.name, category: store.category,
-                })) }),
-              });
-              const classificationData = await classificationResponse.json();
-              if (!classificationResponse.ok || !Array.isArray(classificationData.results)) {
-                throw new Error(classificationData.error || "Klasifikasi gagal");
-              }
-              predictions = new Map<string, Classification>(
-                classificationData.results.map((prediction: Classification & { id: string }) =>
-                  [prediction.id, prediction])
-              );
-            } catch (classificationFailure) {
-              console.error("Classification error:", classificationFailure);
-              failedBatches++;
-              predictions = new Map(batch.map((store) => [store.id, {
-                label: "unavailable" as const,
-                confidence: null,
-                reason: "request_failed" as const,
-              }]));
-            }
-
-            setResults((current) => current.map((store) => ({
-              ...store,
-              classification: predictions.get(store.id) || store.classification,
-            })));
-            setSelectedStore((current) => current ? ({
-              ...current,
-              classification: predictions.get(current.id) || current.classification,
-            }) : null);
-          }
-        } finally {
-          setIsClassifying(false);
-        }
-        if (failedBatches > 0) {
-          setClassificationError(`${failedBatches} batch gagal diklasifikasi. Toko yang terdampak ditandai jelas.`);
-        }
-      }
-    } catch (err) {
-      setError("Gagal menghubungi server. Pastikan koneksi internet aktif.");
-      console.error("Search error:", err);
-    } finally {
-      setIsSearching(false);
-    }
+    fitNextResults.current = searchMode === 'area';
+    await startSearch(params, { mode: searchMode, area: searchMode === 'area' ? query.trim() : '',
+      bounds: requestedBounds || undefined, polygon: searchMode === 'map' ? polygon : undefined });
   };
 
   const filteredResults = filterPotensial
@@ -408,9 +340,7 @@ export default function SearchPage() {
   const potensialCount = results.filter((r) => isPotensial(r)).length;
   const mappedPotentialCount = results.filter((r) => isPotensial(r) && hasCoordinates(r)).length;
   const withPhotoCount = results.filter((r) => r.photoUrl).length;
-    const classifiedCount = results.filter((r) =>
-      r.classification?.label === "potensial" || r.classification?.label === "non_potensial" ||
-      r.classification?.reason === "business_unknown").length;
+  const classifiedCount = results.filter((r) => r.classification).length;
   const withoutPhotoCount = results.length - withPhotoCount;
 
   return (
@@ -422,7 +352,7 @@ export default function SearchPage() {
       </div>
 
       {/* Search Bar */}
-      <div className={styles.searchPanel}>
+      <div className={`${styles.searchPanel} ${searchMode === 'map' ? styles.mapSearchPanel : ''}`}>
       <div className={styles.modeSwitch} role="group" aria-label="Mode pencarian">
         <button type="button" aria-pressed={searchMode === "area"} disabled={isSearching || isClassifying}
           onClick={() => { setSearchMode("area"); setDrawing(false); setError(""); }}>Nama daerah</button>
@@ -459,13 +389,13 @@ export default function SearchPage() {
       </div>
       <p className={styles.searchHint}>Contoh: Babarsari, Seturan, atau Sleman</p>
       </> : <div className={styles.mapSearchControls}>
-        <div><strong>Gambar batas area canvasing</strong><p>Klik Gambar area, lalu klik minimal 3 titik di peta mengelilingi area tujuan. Geser titik untuk mengubah batas.</p>
+        <div><strong>Batas area canvasing</strong><p>Klik minimal 3 titik untuk menggambar area. Geser titik untuk mengubah batas.</p>
           <div className={styles.drawActions}>
             <button type="button" className="btn btn-secondary" disabled={!mapReady || isSearching || isClassifying} onClick={() => { setDrawing(!drawing); setSelectedStore(null); }}>{drawing ? 'Selesai menggambar' : polygon.length ? 'Edit area' : 'Gambar area'}</button>
             <button type="button" className="btn btn-secondary" disabled={!polygon.length || isSearching || isClassifying} onClick={() => { setPolygon(current => current.slice(0, -1)); setDrawing(true); }}>Urungkan titik</button>
             <button type="button" className="btn btn-secondary" disabled={!polygon.length || isSearching || isClassifying} onClick={() => { setPolygon([]); setDrawing(true); setError(''); }}>Gambar ulang</button>
           </div>
-          <p role="status">{polygon.length} titik · {polygon.length >= 3 && areaError ? areaError : drawing ? 'Mode gambar aktif.' : !areaError ? 'Area siap dicari.' : 'Belum ada area yang siap dicari.'} Hasil pencarian mengikuti batas gambar, bukan posisi tampilan peta.</p>
+          <p role="status">{polygon.length} titik · {polygon.length >= 3 && areaError ? areaError : drawing ? 'Mode gambar aktif.' : !areaError ? 'Area siap dicari.' : 'Gambar area untuk mulai mencari.'}</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={handleSearch}
           disabled={!mapReady || isSearching || isClassifying || !!areaError}>
@@ -483,6 +413,7 @@ export default function SearchPage() {
           </button>
         </div>
       )}
+      {searchProgress && <p className={styles.searchHint} role="status">{searchProgress}</p>}
       {coverageNotice && <p className={styles.searchHint} role="status">{coverageNotice}</p>}
       {classificationError && <div className={styles.errorBox}>{classificationError}</div>}
       {saveNotice && <div className={styles.saveNotice} role="status">{saveNotice} <Link href="/dashboard/canvasing">Buka Kunjungan →</Link></div>}
@@ -591,7 +522,7 @@ export default function SearchPage() {
                   setListName(searchContext.area ? `Kunjungan ${searchContext.area}` : ""); setVisitArea(searchContext.area);
                   setTargetList(""); setSaveError(""); setSaveOpen(true);
                 }}>Simpan pilihan</button>
-                {isClassifying && <small>Penyimpanan tersedia setelah klasifikasi selesai.</small>}
+                {isClassifying && <small>Penyimpanan tersedia setelah pencarian selesai.</small>}
               </div>
               <div className={styles.resultsHeader}>
                 <div className={styles.resultsInfo}>
@@ -601,7 +532,7 @@ export default function SearchPage() {
                   <span className={styles.potensialCount}>
                     {potensialCount} potensial
                   </span>
-                  <span>{classifiedCount}/{withPhotoCount} foto diproses
+                  <span>{classifiedCount}/{results.length} toko diproses
                     {isClassifying ? " · sedang diproses" : ""}
                   </span>
                   {withoutPhotoCount > 0 && <span>{withoutPhotoCount} tanpa foto</span>}

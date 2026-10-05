@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-interface ScrapedStore {
+import type { Browser, Page } from "puppeteer";
+
+export interface ScrapedStore {
   id: string;
   name: string;
   address: string;
@@ -12,56 +14,87 @@ interface ScrapedStore {
   url: string;
 }
 
-export async function scrapeGoogleMaps(
+interface ScraperOptions {
+  loadPhotoFor?: (store: ScrapedStore) => boolean;
+}
+
+const placeKey = (url: string) => url.match(/!1s([^!/?]+)/)?.[1] || url;
+
+export async function createGoogleMapsScraper(options: ScraperOptions = {}) {
+  const puppeteer = require("puppeteer-extra");
+  if (!puppeteer.plugins.some((plugin: { name: string }) => plugin.name === "stealth")) {
+    puppeteer.use(require("puppeteer-extra-plugin-stealth")());
+  }
+  const browser: Browser = await puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+  });
+  const photos = new Map<string, string>();
+  return {
+    search: (query: string, lat: number, lng: number, zoom: number) => searchPage(browser, query, lat, lng, zoom, options, photos),
+    close: () => browser.close(),
+  };
+}
+
+export async function scrapeGoogleMaps(query: string, lat: number, lng: number, zoom: number): Promise<ScrapedStore[]> {
+  const scraper = await createGoogleMapsScraper();
+  try { return await scraper.search(query, lat, lng, zoom); }
+  finally { await scraper.close(); }
+}
+
+async function searchPage(
+  browser: Browser,
   query: string,
   lat: number,
   lng: number,
-  zoom: number
+  zoom: number,
+  options: ScraperOptions,
+  photos: Map<string, string>
 ): Promise<ScrapedStore[]> {
-  const puppeteer = require("puppeteer-extra");
-  const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-  puppeteer.use(StealthPlugin());
-
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
-  });
-
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 900 });
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
 
-    // Navigate to Google Maps search WITH location bias
-    // Adding @lat,lng,zoom to URL centers the search on that area
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${lat},${lng},${zoom}z`;
     await page.goto(searchUrl, {
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
 
-    // Wait for results to load
     await page.waitForSelector('[role="feed"], .section-result', {
       timeout: 15000,
-    }).catch(() => {
-      // Sometimes the selector doesn't match exactly, wait a bit more
     });
+    await page.waitForSelector('a[href*="/maps/place/"][aria-label]', { timeout: 10000 });
+    if (!options.loadPhotoFor) await waitForVisiblePhotos(page);
+    await autoScroll(page, !options.loadPhotoFor);
+    if (!options.loadPhotoFor) await loadCardPhotos(page);
+    let stores = await extractStores(page);
+    if (options.loadPhotoFor) {
+      for (const store of stores) {
+        if (store.photoUrl) photos.set(placeKey(store.url), store.photoUrl);
+        else store.photoUrl = photos.get(placeKey(store.url)) || null;
+      }
+      const needed = stores.filter(store => !store.photoUrl && options.loadPhotoFor!(store));
+      if (needed.length) {
+        await loadSelectedCardPhotos(page, needed.map(store => store.url));
+        stores = await extractStores(page);
+      }
+      for (const store of stores) {
+        if (store.photoUrl) photos.set(placeKey(store.url), store.photoUrl);
+        else store.photoUrl = photos.get(placeKey(store.url)) || null;
+      }
+    }
+    return stores;
+  } finally {
+    await page.close();
+  }
+}
 
-    // Extra wait for dynamic content
-    await new Promise((r) => setTimeout(r, 3000));
-
-    // Scroll the results panel to load more
-    await autoScroll(page);
-
-    // Extract store data using flexible selectors
-    const stores: ScrapedStore[] = await page.evaluate(() => {
+async function extractStores(page: Page): Promise<ScrapedStore[]> {
+    return page.evaluate(() => {
       const results: ScrapedStore[] = [];
       const seen = new Set<string>();
 
@@ -221,37 +254,88 @@ export async function scrapeGoogleMaps(
       return results;
     });
 
-    return stores;
-  } finally {
-    await browser.close();
+}
+
+async function autoScroll(page: Page, loadPhotos: boolean) {
+  let stable = 0;
+  // Keep the same ten-page limit; advance as soon as Maps adds results.
+  for (let step = 0; step < 10; step++) {
+    const before = await page.evaluate(() => {
+      const feed = document.querySelector('[role="feed"]');
+      if (!feed) return null;
+      const state = { count: feed.querySelectorAll('a[href*="/maps/place/"]').length };
+      feed.scrollTop = feed.scrollHeight;
+      return state;
+    });
+    if (!before) break;
+    try {
+      await page.waitForFunction((previous) => {
+        const feed = document.querySelector('[role="feed"]');
+        return feed && feed.querySelectorAll('a[href*="/maps/place/"]').length > previous.count;
+      }, { timeout: 2000, polling: 100 }, before);
+      if (loadPhotos) await waitForVisiblePhotos(page);
+      stable = 0;
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error;
+      if (++stable >= 2) break;
+    }
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function autoScroll(page: any) {
-  await page.evaluate(async () => {
-    // The correct scrollable element is [role="feed"] ITSELF
-    const scrollable = document.querySelector('[role="feed"]');
-
-    if (!scrollable) return;
-
-    let previousHeight = 0;
-    let sameHeightCount = 0;
-
-    // Scroll up to 10 times, stopping early if no new content loads
-    for (let i = 0; i < 10; i++) {
-      scrollable.scrollTop = scrollable.scrollHeight;
-      await new Promise((r) => setTimeout(r, 2000));
-
-      const currentHeight = scrollable.scrollHeight;
-      if (currentHeight === previousHeight) {
-        sameHeightCount++;
-        if (sameHeightCount >= 2) break;
-      } else {
-        sameHeightCount = 0;
+async function loadSelectedCardPhotos(page: Page, urls: string[]) {
+  await page.evaluate(async (targets) => {
+    for (const url of targets) {
+      const anchor = [...document.querySelectorAll<HTMLAnchorElement>('a[href*="/maps/place/"]')].find(link => link.href === url);
+      if (!anchor) continue;
+      let card: Element = anchor;
+      for (let level = 0; level < 5 && card.parentElement; level++) {
+        card = card.parentElement;
+        if (card.children.length >= 2) break;
       }
-      previousHeight = currentHeight;
+      const hasPhoto = () => [...card.querySelectorAll('img')].some(img =>
+        img.src.includes('googleusercontent.com') && img.src.length > 50
+        && !['=w24', '=w32', '=w36', '=s'].some(size => img.src.includes(size)));
+      if (hasPhoto()) continue;
+      card.scrollIntoView({ block: 'center' });
+      await new Promise<void>(resolve => {
+        const observer = new MutationObserver(() => { if (hasPhoto()) finish(); });
+        const timer = setTimeout(finish, 800);
+        function finish() { clearTimeout(timer); observer.disconnect(); resolve(); }
+        observer.observe(card, { attributes: true, childList: true, subtree: true, attributeFilter: ['src'] });
+        if (hasPhoto()) finish();
+      });
+    }
+  }, urls);
+}
+
+async function waitForVisiblePhotos(page: Page) {
+  // Maps assigns lazy photo URLs after a card enters the results viewport.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.waitForFunction(() => {
+    const feed = document.querySelector('[role="feed"]');
+    if (!feed) return true;
+    const bounds = feed.getBoundingClientRect();
+    return [...feed.querySelectorAll('img')].filter(img => {
+      const box = img.getBoundingClientRect();
+      return box.height > 40 && box.bottom > bounds.top && box.top < bounds.bottom;
+    }).every(img => img.src.includes('googleusercontent.com'));
+  }, { timeout: 1200, polling: 100 }).catch((error: unknown) => {
+    if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error;
+  });
+}
+
+async function loadCardPhotos(page: Page) {
+  await page.evaluate(async () => {
+    const feed = document.querySelector('[role="feed"]');
+    if (!feed) return;
+    const height = feed.scrollHeight;
+    const step = Math.max(300, feed.clientHeight - 100);
+    // Visit loaded cards so fast scrolling does not skip their lazy images.
+    for (let top = 0; top < height; top += step) {
+      feed.scrollTop = top;
+      await new Promise(resolve => setTimeout(resolve, 150));
     }
   });
+  await waitForVisiblePhotos(page);
 }
 

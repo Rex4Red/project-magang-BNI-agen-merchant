@@ -14,6 +14,28 @@ npm run dev
 
 Buka http://localhost:3000.
 
+## Akses publik dari laptop Windows
+
+Dari folder utama project, jalankan PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Start-Online.ps1
+```
+
+Script membuat build produksi, menjalankan server di `127.0.0.1:3001`, lalu membuka Cloudflare Quick Tunnel. Tautan HTTPS yang muncul bisa dibuka dari perangkat lain melalui internet. `cloudflared` diunduh dari release resmi jika belum tersedia. Server dan tunnel berjalan di background. Laptop harus tetap aktif, tersambung internet, dan tidak sleep.
+
+Untuk menghentikan:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Stop-Online.ps1
+```
+
+Untuk memakai build yang sudah tersedia tanpa membangun ulang, tambahkan `-SkipBuild`. Setelah perubahan kode, jalankan kembali tanpa parameter tersebut. Tautan sementara dapat berubah saat tunnel dinyalakan ulang. Tautan tersimpan di `.online-runtime/public-url.txt`; log proses berada di folder yang sama. Folder ini serta `.local-tools` tidak masuk Git.
+
+Quick Tunnel digunakan untuk demo, tanpa jaminan ketersediaan. Login aplikasi masih akun demo, belum autentikasi server. Data kunjungan tetap tersimpan per browser dan alamat website, sehingga belum bisa dibagikan antarperangkat.
+
+Pencarian merchant serta pencarian dan klasifikasi agen berjalan sebagai tugas di background: server langsung mengirim ID pencarian, kemudian browser mengecek progres sampai selesai. Progres dan hasil disimpan sementara di memori server (hasil selesai tersedia selama 30 menit); restart server menghapus tugas tersebut. Setiap workspace memproses satu tugas pada satu waktu, dengan maksimal empat tugas yang belum selesai agar penggunaan browser scraper tidak berlebihan. Pada agen, kegagalan model tidak menghapus hasil pencarian; toko yang terdampak ditandai sebagai klasifikasi gagal.
+
 Untuk model klasifikasi agen, pasang dependensi pada Python yang digunakan server:
 
 ```sh

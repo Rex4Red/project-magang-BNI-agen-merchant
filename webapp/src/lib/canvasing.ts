@@ -17,7 +17,7 @@ export interface Prospect {
   classification?: {
     label: "potensial" | "non_potensial" | "unavailable";
     confidence: number | null;
-    reason?: "no_photo" | "image_error" | "business_unknown" | "request_failed" | null;
+    reason?: "no_photo" | "image_error" | "business_unknown" | "low_confidence" | "request_failed" | null;
     source?: "image_model" | "business_type";
     businessReason?: string | null;
   };
@@ -29,6 +29,11 @@ export interface Visit extends Prospect {
   notes: string;
   phone?: string;
   pic?: string;
+  businessId?: string;
+  product?: string;
+  financialInstitutions?: string;
+  potential?: string;
+  followUpNotes?: string;
   agentStatus?: "unknown" | "yes" | "no";
   agentProvider?: string;
   qrisStatus?: "unknown" | "yes" | "no";
@@ -75,7 +80,18 @@ function parse(raw: string): VisitList[] {
     !list.id || !list.name || !Array.isArray(list.stores))) {
     throw new Error("Format daftar kunjungan tidak dapat dibaca.");
   }
+  assignBusinessIds(data.lists);
   return data.lists;
+}
+
+function assignBusinessIds(lists: VisitList[]) {
+  const used = new Set(lists.flatMap(list => list.stores.map(store => store.businessId).filter(Boolean)));
+  let next = [...used].reduce((max, id) => Math.max(max, Number(id?.match(/^USH-(\d+)$/)?.[1]) || 0), 0) + 1;
+  for (const list of lists) for (const store of list.stores) {
+    if (!store.businessId) {
+      store.businessId = `USH-${String(next++).padStart(3, '0')}`;
+    }
+  }
 }
 
 function subscribe(listener: () => void) {
@@ -94,6 +110,7 @@ export function useVisitLists() {
 }
 
 function persist(lists: VisitList[]) {
+  assignBusinessIds(lists);
   try { localStorage.setItem(storageKey(), JSON.stringify({ version: 1, lists })); }
   catch { throw new Error("Gagal menyimpan. Penyimpanan browser mungkin penuh atau tidak diizinkan."); }
   window.dispatchEvent(new Event(EVENT));
@@ -138,6 +155,16 @@ export function updateVisit(listId: string, visitId: string, patch: Partial<Omit
   const store = list?.stores.find((item) => item.visitId === visitId);
   if (!list || !store) throw new Error("Toko tersimpan tidak ditemukan.");
   Object.assign(store, patch);
+  list.updatedAt = new Date().toISOString();
+  persist(lists);
+}
+
+export function deleteVisit(listId: string, visitId: string) {
+  const lists = parse(snapshot());
+  const list = lists.find(item => item.id === listId);
+  const index = list?.stores.findIndex(item => item.visitId === visitId) ?? -1;
+  if (!list || index === -1) throw new Error("Toko tersimpan tidak ditemukan. Muat ulang daftar kunjungan.");
+  list.stores.splice(index, 1);
   list.updatedAt = new Date().toISOString();
   persist(lists);
 }

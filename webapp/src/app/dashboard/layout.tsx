@@ -3,6 +3,7 @@ import { useState, useEffect, ReactNode } from "react";
 import { useSession, homeFor } from "@/lib/session";
 import { useRouter, usePathname } from "next/navigation";
 import { Icon } from "@/components/Icon";
+import { AgentSearchProvider } from "@/lib/agent-search-session";
 import styles from "./layout.module.css";
 const items = [
  {href:"/dashboard",label:"Ringkasan",icon:"grid"},
@@ -17,7 +18,7 @@ export default function DashboardLayout({children}:{children:ReactNode}) {
  const currentPage=items.find(item=>item.href===pathname)?.label || "Workspace";
  useEffect(()=>{if(ready && (!user || user.workspace !== "agen")) router.replace(user ? homeFor(user.workspace) : "/");},[ready,user,router]);
  if(!ready || !user || user.workspace !== "agen") return <div className={styles.loading}>Menyiapkan ruang kerja…</div>;
- return <div className={styles.shell}>
+ return <AgentSearchProvider key={user.username} username={user.username}><div className={styles.shell}>
   {menu&&<button className={styles.backdrop} aria-label="Tutup menu" onClick={()=>setMenu(false)}/>}
   <aside className={`${styles.sidebar} ${menu?styles.open:""}`}>
    <a href="/dashboard" className={styles.brand}><span className={styles.brandMark}>BNI</span><strong>agen<span>.</span></strong></a>
@@ -37,6 +38,6 @@ export default function DashboardLayout({children}:{children:ReactNode}) {
    <main className={styles.content}>{children}</main>
    <footer className={styles.footer}><span>BNI CANVAS</span><span>Aplikasi canvasing</span></footer>
   </div>
- </div>;
+ </div></AgentSearchProvider>;
 }
 

@@ -3,8 +3,17 @@ import { useState, useRef, useEffect } from "react";
 import { addManualVisit, updateVisit, displayAddress, displayCategory, type Visit } from "@/lib/canvasing";
 import styles from "./page.module.css";
 import { getDeviceLocation, locationErrorMessage } from "@/lib/device-location";
+import { CATEGORY_OPTIONS, PRODUCT_OPTIONS, POTENTIAL_OPTIONS, visitProduct, visitInstitutions } from "@/lib/visit-template";
+import ChoiceInput from "./ChoiceInput";
 
-function PhotoPreview({ photo, onClose }: { photo: { src: string; number: number }; onClose: () => void }) {
+function isBackdrop(event: { target: EventTarget | null; currentTarget: HTMLDialogElement; clientX: number; clientY: number }) {
+  if (event.target !== event.currentTarget) return false;
+  const bounds = event.currentTarget.getBoundingClientRect();
+  return event.clientX < bounds.left || event.clientX > bounds.right
+    || event.clientY < bounds.top || event.clientY > bounds.bottom;
+}
+
+export function PhotoPreview({ photo, onClose }: { photo: { src: string; number: number }; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); }, []);
   return <dialog ref={ref} className={styles.photoDialog} aria-label={`Foto kunjungan ${photo.number}`} onCancel={e => { e.preventDefault(); e.stopPropagation(); onClose(); }}>
@@ -44,9 +53,12 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
   const [dirty, setDirty] = useState(false);
   const [locationMessage, setLocationMessage] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
+  const backdropPressed = useRef(false);
   function patch(values: Partial<Visit>) { setDraft(current => ({ ...current, ...values })); setDirty(true); setMessage(''); }
   function close() { if (busy || locating) return; if (!dirty || window.confirm('Ada perubahan yang belum disimpan. Tutup formulir?')) onClose(); }
-  const text = (key: 'name' | 'category' | 'address' | 'phone' | 'pic' | 'visitArea', label: string) => <label>{label}<input maxLength={key === 'address' ? 1000 : 150} type={key === 'phone' ? 'tel' : 'text'} value={draft[key] || ''} onChange={event => patch({ [key]: event.target.value })} /></label>;
+  const text = (key: 'name' | 'category' | 'address' | 'phone' | 'pic' | 'visitArea' | 'url', label: string) => key === 'category'
+    ? <ChoiceInput label={label} value={draft.category || ''} options={CATEGORY_OPTIONS} onChange={value => patch({ category: value })} />
+    : <label>{label}<input maxLength={key === 'url' ? 2000 : key === 'address' ? 1000 : 150} type={key === 'phone' ? 'tel' : 'text'} value={draft[key] || ''} onChange={event => patch({ [key]: event.target.value })} /></label>;
   async function locate() {
     if (!window.isSecureContext) { setLocationMessage('Lokasi memerlukan HTTPS atau localhost. Buka aplikasi melalui alamat yang aman, lalu coba lagi.'); return; }
     if (!navigator.geolocation) { setLocationMessage('Browser tidak mendukung lokasi.'); return; }
@@ -68,48 +80,65 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
       setLocationMessage(locationErrorMessage(err));
     } finally { setLocating(false); }
   }
-  return <dialog ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }} className={styles.visitDialog} onCancel={event => { event.preventDefault(); close(); }}>
+  return <dialog ref={node => { dialog.current = node; if (node && !node.open) node.showModal(); }} className={styles.visitDialog}
+    onCancel={event => { event.preventDefault(); close(); }}
+    onPointerDown={event => { backdropPressed.current = isBackdrop(event); }}
+    onClick={event => {
+      const dismiss = backdropPressed.current && isBackdrop(event);
+      backdropPressed.current = false;
+      if (dismiss) close();
+    }}>
     <header className={styles.formHeader}><div><span className={styles.eyebrow}>CANVASING / DATA KUNJUNGAN</span><h2>{isNew ? 'Tambah toko lapangan' : 'Catat kunjungan'}</h2><p>{isNew ? 'Catat usaha yang ditemukan saat canvasing.' : (store.name || "Toko belum diberi nama")}</p></div><button type="button" className="btn btn-secondary btn-sm" disabled={busy || locating} onClick={close}>Tutup</button></header>
     <form onSubmit={event => {
       event.preventDefault(); setMessage('');
       try {
         const qrisProviders = draft.qrisStatus === 'yes' ? (draft.qrisProviders || []).map(provider => provider.trim()).filter((provider, index, providers) => provider && providers.findIndex(other => other.toLowerCase() === provider.toLowerCase()) === index) : [];
-        const saved = { ...draft, name: draft.name.trim(), address: draft.address.trim(), category: draft.category.trim(), visitArea: draft.visitArea?.trim(),
+        const saved = { ...draft, name: draft.name.trim(), address: draft.address.trim(), category: draft.category.trim(), visitArea: draft.visitArea?.trim(), url: draft.url.trim(),
+          product: draft.product?.trim(), financialInstitutions: draft.financialInstitutions?.trim(), potential: draft.potential?.trim(),
+          followUp: draft.followUp?.trim(), followUpNotes: draft.followUpNotes?.trim(), prospectResult: draft.prospectResult?.trim(),
           agentProvider: draft.agentStatus === 'yes' ? draft.agentProvider?.trim() : '', qrisProviders, qrisProvider: qrisProviders[0] || '',
-          ...(workspace === 'merchant' ? { edcProviders: draft.edcStatus === 'yes' ? (draft.edcProviders || []).map(bank => bank.trim()).filter((bank, index, banks) => bank && banks.findIndex(other => other.toLowerCase() === bank.toLowerCase()) === index) : [] } : {}) };
-        if (isNew) { addManualVisit(listId, { ...saved, url: saved.locationCapturedAt ? `https://www.google.com/maps/search/?api=1&query=${saved.lat},${saved.lng}` : "" }); onClose(); }
+          edcProviders: draft.edcStatus === 'yes' ? (draft.edcProviders || []).map(bank => bank.trim()).filter((bank, index, banks) => bank && banks.findIndex(other => other.toLowerCase() === bank.toLowerCase()) === index) : [] };
+        if (isNew) { addManualVisit(listId, { ...saved, url: saved.url || (saved.locationCapturedAt ? `https://www.google.com/maps/search/?api=1&query=${saved.lat},${saved.lng}` : "") }); onClose(); }
         else { updateVisit(listId, store.visitId, saved); setDirty(false); setMessage('Seluruh data kunjungan berhasil disimpan.'); }
       } catch (err) { setMessage(err instanceof Error ? err.message : 'Gagal menyimpan.'); }
     }}>
       <div className={styles.formBody}>
-        <fieldset><legend>01 · Identitas usaha</legend><div className={styles.fieldGrid}>{text('name', 'Nama toko')}{text('category', 'Kategori')}{text('pic', 'Nama PIC')}{text('phone', 'Nomor telepon')}{text('visitArea', 'Area kunjungan')}{text('address', 'Alamat')}</div></fieldset>
+        <fieldset><legend>01 · Identitas usaha</legend><div className={styles.fieldGrid}>
+          {text('name', 'Nama Usaha')}{text('category', 'Kategori')}{text('address', 'Alamat')}{text('pic', 'Nama PIC')}{text('phone', 'No telp')}{text('visitArea', 'Area Kunjungan')}
+          {text('url', 'Gmaps')}<label>ID Usaha<input readOnly value={draft.businessId || ''} placeholder="Dibuat otomatis saat disimpan" /></label>
+        </div></fieldset>
         <fieldset><legend>02 · Lokasi toko</legend><p>Alamat toko hasil pencarian sudah terisi. Untuk toko baru, ambil lokasi ketika berada di toko. Tombol ini mengirim koordinat ke OpenStreetMap untuk mencari alamat.</p><button type="button" className="btn btn-secondary" disabled={locating || busy} onClick={locate}>{locating ? 'Mengambil lokasi…' : 'Ambil lokasi saya & isi alamat'}</button><div className={styles.fieldGrid}><label>Latitude<input readOnly value={draft.lat || ''} /></label><label>Longitude<input readOnly value={draft.lng || ''} /></label></div>{locationMessage && <p role="status">{locationMessage}</p>}{draft.locationAccuracy != null && <small>Akurasi perangkat ±{Math.round(draft.locationAccuracy)} m</small>}</fieldset>
-        <fieldset><legend>{workspace === "merchant" ? "03 · QRIS & EDC" : "03 · Agen & QRIS"}</legend><div className={styles.fieldGrid}>
+        <fieldset><legend>03 · Produk & LJK</legend><div className={styles.fieldGrid}>
+          <ChoiceInput label="Produk" value={visitProduct(draft)} options={PRODUCT_OPTIONS} onChange={value => patch({ product: value })} placeholder="Pilih atau ketik produk" />
+          <label>LJK<textarea rows={3} maxLength={1000} value={visitInstitutions(draft)} onChange={e => patch({ financialInstitutions: e.target.value })} placeholder="Contoh: QRIS - BNI, BCA" /></label>
+        </div>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => patch({ product: undefined, financialInstitutions: undefined })}>Isi Produk & LJK dari penyedia</button>
+        <div className={styles.fieldGrid}>
           {workspace === "agen" && <label>Sudah menjadi agen?<select value={draft.agentStatus} onChange={e => patch({ agentStatus: e.target.value as Visit['agentStatus'] })}><option value="unknown">Belum diketahui</option><option value="yes">Sudah</option><option value="no">Belum</option></select></label>}
-          {workspace === 'agen' && draft.agentStatus === 'yes' && <label>Penyedia agen<input list="agent-options" value={draft.agentProvider || ''} onChange={e => patch({ agentProvider: e.target.value })} placeholder="Pilih atau ketik penyedia lain" /><datalist id="agent-options">{['Agen46 BNI','BRILink','Mandiri Agen','BCA','Bank lain'].map(x => <option key={x} value={x} />)}</datalist></label>}
+          {workspace === 'agen' && draft.agentStatus === 'yes' && <ChoiceInput label="Penyedia agen" value={draft.agentProvider || ''} options={['Agen46 BNI','BRILink','Mandiri Agen','BCA','Bank lain']} onChange={value => patch({ agentProvider: value })} placeholder="Pilih atau ketik penyedia lain" />}
           <label>Sudah punya QRIS?<select value={draft.qrisStatus} onChange={e => patch({ qrisStatus: e.target.value as Visit['qrisStatus'] })}><option value="unknown">Belum diketahui</option><option value="yes">Sudah</option><option value="no">Belum</option></select></label>
           {draft.qrisStatus === 'yes' && <div className={styles.qrisProviders}>
             {(draft.qrisProviders?.length ? draft.qrisProviders : ['']).map((provider, index) => <div className={styles.edcRow} key={index}>
-              <label>Penyedia QRIS {index + 1}<input list="qris-options" maxLength={150} value={provider} placeholder="Pilih atau ketik penyedia lain" onChange={e => { const providers = [...(draft.qrisProviders?.length ? draft.qrisProviders : [''])]; providers[index] = e.target.value; patch({ qrisProviders: providers }); }} /></label>
+              <ChoiceInput label={`Penyedia QRIS ${index + 1}`} value={provider} options={['BNI','BRI','Mandiri','BCA','CIMB Niaga','BSI','GoPay','OVO','DANA','ShopeePay']} placeholder="Pilih atau ketik penyedia lain" onChange={value => { const providers = [...(draft.qrisProviders?.length ? draft.qrisProviders : [''])]; providers[index] = value; patch({ qrisProviders: providers }); }} />
               <button type="button" className="btn btn-secondary btn-sm" aria-label={`Hapus penyedia QRIS ${index + 1}`} onClick={() => patch({ qrisProviders: draft.qrisProviders?.filter((_, i) => i !== index) })}>Hapus</button>
             </div>)}
-            <datalist id="qris-options">{['BNI','BRI','Mandiri','BCA','CIMB Niaga','BSI','GoPay','OVO','DANA','ShopeePay'].map(x => <option key={x} value={x} />)}</datalist>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => patch({ qrisProviders: [...(draft.qrisProviders?.length ? draft.qrisProviders : ['']), ''] })}>Tambah penyedia QRIS</button>
           </div>}
-          {workspace === 'merchant' && <label>Sudah punya EDC?<select value={draft.edcStatus} onChange={e => patch({ edcStatus: e.target.value as Visit['edcStatus'] })}><option value="unknown">Belum diketahui</option><option value="yes">Sudah</option><option value="no">Belum</option></select></label>}
+          <label>Sudah punya EDC?<select value={draft.edcStatus} onChange={e => patch({ edcStatus: e.target.value as Visit['edcStatus'] })}><option value="unknown">Belum diketahui</option><option value="yes">Sudah</option><option value="no">Belum</option></select></label>
         </div>
-        {workspace === 'merchant' && draft.edcStatus === 'yes' && <div className={styles.edcBanks}>
+        {draft.edcStatus === 'yes' && <div className={styles.edcBanks}>
           {(draft.edcProviders?.length ? draft.edcProviders : ['']).map((bank, index) => <div className={styles.edcRow} key={index}>
-            <label>Bank EDC {index + 1}<input list="edc-options" maxLength={150} value={bank} placeholder="Pilih atau ketik nama bank" onChange={e => { const banks = [...(draft.edcProviders?.length ? draft.edcProviders : [''])]; banks[index] = e.target.value; patch({ edcProviders: banks }); }} /></label>
+            <ChoiceInput label={`Bank EDC ${index + 1}`} value={bank} options={['BCA', 'Mandiri', 'BNI', 'BRI', 'CIMB Niaga', 'Bank Danamon', 'Bank Mega', 'PermataBank', 'BSI']} placeholder="Pilih atau ketik nama bank" onChange={value => { const banks = [...(draft.edcProviders?.length ? draft.edcProviders : [''])]; banks[index] = value; patch({ edcProviders: banks }); }} />
             <button type="button" className="btn btn-secondary btn-sm" aria-label={`Hapus bank EDC ${index + 1}`} onClick={() => patch({ edcProviders: draft.edcProviders?.filter((_, i) => i !== index) })}>Hapus</button>
           </div>)}
-          <datalist id="edc-options">{['BCA', 'Mandiri', 'BNI', 'BRI', 'CIMB Niaga', 'Bank Danamon', 'Bank Mega', 'PermataBank', 'BSI'].map(bank => <option key={bank} value={bank} />)}</datalist>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => patch({ edcProviders: [...(draft.edcProviders?.length ? draft.edcProviders : ['']), ''] })}>Tambah bank EDC</button>
         </div>}</fieldset>
         <fieldset><legend>04 · Hasil kunjungan</legend><div className={styles.fieldGrid}>
           <label>Status kunjungan<select value={draft.status} onChange={e => patch({ status: e.target.value as Visit['status'] })}><option value="planned">Belum dikunjungi</option><option value="visited">Sudah dikunjungi</option></select></label>
-          <label>Hasil prospek<input list="prospect-options" value={draft.prospectResult || ''} onChange={e => patch({ prospectResult: e.target.value })} placeholder="Pilih atau ketik hasil" /><datalist id="prospect-options">{['Belum ditindaklanjuti','Tertarik','Perlu pertimbangan','Tidak tertarik','Tidak memenuhi kriteria','Proses pendaftaran',workspace === 'merchant' ? 'Berhasil menjadi merchant' : 'Berhasil menjadi agen','PIC tidak ditemui'].map(x => <option key={x} value={x} />)}</datalist></label>
-          <label>Tindak lanjut<input list="followup-options" value={draft.followUp || ''} onChange={e => patch({ followUp: e.target.value })} placeholder="Pilih atau ketik tindak lanjut" /><datalist id="followup-options">{['Kunjungan ulang','Hubungi via telepon / WhatsApp','Kirim informasi produk','Lengkapi dokumen','Pendampingan pendaftaran','Tidak ada tindak lanjut'].map(x => <option key={x} value={x} />)}</datalist></label>
+          <ChoiceInput label="Potensi" value={draft.potential || ''} options={POTENTIAL_OPTIONS} onChange={value => patch({ potential: value })} placeholder="Pilih atau ketik potensi" />
+          <label>Follow up<textarea rows={3} maxLength={1000} value={draft.followUpNotes || ''} onChange={e => patch({ followUpNotes: e.target.value })} placeholder="Catatan perkembangan follow up" /></label>
+          <ChoiceInput label="Tindak Lanjut" maxLength={1000} value={draft.followUp || ''} options={POTENTIAL_OPTIONS} onChange={value => patch({ followUp: value })} placeholder="Pilih atau ketik tindak lanjut" />
+          <ChoiceInput label="Hasil Prospek" maxLength={1000} value={draft.prospectResult || ''} options={['Belum ditindaklanjuti','Tertarik','Perlu pertimbangan','Tidak tertarik','Tidak memenuhi kriteria','Proses pendaftaran',workspace === 'merchant' ? 'Berhasil menjadi merchant' : 'Berhasil menjadi agen','PIC tidak ditemui']} onChange={value => patch({ prospectResult: value })} placeholder="Pilih atau ketik hasil" />
         </div><label>Catatan<textarea rows={4} maxLength={5000} value={draft.notes} onChange={e => patch({ notes: e.target.value })} placeholder="Kondisi usaha, kebutuhan PIC, atau catatan tindak lanjut" /></label></fieldset>
         <fieldset><legend>05 · Foto kunjungan</legend><p>Maksimal 3 foto JPG, PNG, atau WebP. Foto dikompresi untuk penyimpanan browser.</p><label>Tambah foto kunjungan<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={busy || (draft.visitPhotos?.length || 0) >= 3} onChange={async e => {
           const files = Array.from(e.target.files || []); e.target.value = '';

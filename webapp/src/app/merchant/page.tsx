@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { distance, pathLength, type Point } from '@/lib/road-geometry';
 import { displayAddress, displayCategory, saveVisitList, useVisitLists, type Prospect } from '@/lib/canvasing';
 import styles from './page.module.css';
+import { readJsonResponse, waitForMerchantSearch } from '@/lib/merchant-search-client';
 interface Merchant extends Prospect { distanceFromRoad: number; distanceFromStart: number }
 export default function MerchantPage() {
  const container=useRef<HTMLDivElement>(null), map=useRef<Leaflet.Map|null>(null), library=useRef<typeof Leaflet|null>(null), layers=useRef<Leaflet.LayerGroup|null>(null);
@@ -65,12 +66,18 @@ export default function MerchantPage() {
   setDrawingMode(false);
   locked.current=true;setBusy(true);setError('');clearResults();
   const controller=new AbortController();requestRef.current=controller;
-  try{const response=await fetch('/api/v1/merchant/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:segment,width,roadName:'Jalur manual'}),signal:controller.signal});const data=await response.json();if(!response.ok)throw Error(data.error);setResults(data.results);setSearched(true);setNotice(data.warning || `Pencarian selesai di ${data.coverage?.length || 1} titik sepanjang jalur. Hasil mengikuti usaha yang tersedia di Google Maps.`);}
-  catch(err){if(!controller.signal.aborted)setError(err instanceof Error?err.message:'Pencarian gagal.');}
+  try{
+   const response=await fetch('/api/v1/merchant/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:segment,width,roadName:'Jalur manual'}),signal:controller.signal});
+   const started=await readJsonResponse(response);
+   if(!response.ok)throw Error(started.error || 'Pencarian gagal dimulai.');
+   const data=await waitForMerchantSearch(started.jobId,controller.signal,message=>setNotice(message));
+   setResults(data.results);setSearched(true);setNotice(data.warning || `Pencarian selesai di ${data.coverage?.length || 1} titik sepanjang jalur. Hasil mengikuti usaha yang tersedia di Google Maps.`);
+  }
+  catch(err){if(!controller.signal.aborted){setNotice('');setError(err instanceof Error?err.message:'Pencarian gagal.');}}
   finally{locked.current=false;setBusy(false);}
  }
  return <div className={styles.page}><header><h1>Cari merchant</h1><p>Gambar jalur dari titik awal sampai titik akhir, lalu cari merchant di sepanjang garis.</p></header>
- <form className={styles.areaSearch} onSubmit={async e=>{e.preventDefault();if(!area.trim()||busy)return;setMoving(true);setError('');try{const response=await fetch(`/api/v1/merchant/area?area=${encodeURIComponent(area)}`);const data=await response.json();if(!response.ok)throw Error(data.error);map.current?.setView([data.lat,data.lng],16);}catch(err){setError(err instanceof Error?err.message:'Daerah tidak ditemukan.');}finally{setMoving(false);}}}><label htmlFor="merchant-area">Pindah ke daerah</label><input id="merchant-area" placeholder="Contoh: Seturan, Yogyakarta" value={area} onChange={e=>setArea(e.target.value)}/><button className="btn btn-secondary" disabled={!ready||busy||moving||!area.trim()}>{moving?'Mencari…':'Tampilkan peta'}</button></form>
+ <form className={styles.areaSearch} onSubmit={async e=>{e.preventDefault();if(!area.trim()||busy)return;setMoving(true);setError('');try{const response=await fetch(`/api/v1/merchant/area?area=${encodeURIComponent(area)}`);const data=await readJsonResponse(response);if(!response.ok)throw Error(data.error);map.current?.setView([data.lat,data.lng],16);}catch(err){setError(err instanceof Error?err.message:'Daerah tidak ditemukan.');}finally{setMoving(false);}}}><label htmlFor="merchant-area">Pindah ke daerah</label><input id="merchant-area" placeholder="Contoh: Seturan, Yogyakarta" value={area} onChange={e=>setArea(e.target.value)}/><button className="btn btn-secondary" disabled={!ready||busy||moving||!area.trim()}>{moving?'Mencari…':'Tampilkan peta'}</button></form>
  {error&&<p role="alert" className={styles.message}>{error}</p>}{notice&&<p role="status" className={styles.message}>{notice}</p>}
  <div className={styles.layout}><section className={styles.mapPanel}><div ref={container} className={styles.map}/><div className={styles.mapCaption}><span>● Titik awal</span><span>Garis oranye: ruas pencarian</span><span>○ Merchant</span></div><p>Klik “Gambar jalur”, lalu klik titik awal, belokan, dan titik akhir. Geser titik untuk memperbaiki garis, lalu tekan tombol oranye “Selesai & cari merchant”. Garis tidak otomatis mengikuti jalan.</p></section>
  <section className={styles.controls} aria-label="Pengaturan ruas jalan"><h2>Ruas pencarian</h2>{busy&&<p role="status">Menelusuri beberapa titik sepanjang jalur. Proses dapat memerlukan beberapa menit…</p>}

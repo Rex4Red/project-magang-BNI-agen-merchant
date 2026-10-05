@@ -57,6 +57,15 @@ def load_photo(url, preprocessing):
         return pixels / 255.0
 
 
+def image_decision(probability, threshold):
+    cutoff = max(0.7, threshold)
+    if probability >= cutoff:
+        return "potensial"
+    if 1 - probability >= cutoff:
+        return "non_potensial"
+    return "unavailable"
+
+
 def main():
     import numpy as np
     import tensorflow as tf
@@ -99,12 +108,12 @@ def main():
         ).reshape(-1)
         for index, score in zip(indexes, scores):
             probability = float(score)
-            label = "potensial" if probability >= threshold else "non_potensial"
+            label = image_decision(probability, threshold)
             results[index] = {
                 "id": items[index]["id"],
                 "label": label,
-                "confidence": probability if label == "potensial" else 1 - probability,
-                "reason": None,
+                "confidence": None if label == "unavailable" else probability if label == "potensial" else 1 - probability,
+                "reason": "low_confidence" if label == "unavailable" else None,
             }
 
     json.dump({"results": results}, sys.stdout)

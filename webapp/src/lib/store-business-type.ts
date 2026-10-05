@@ -13,6 +13,7 @@ const normalize = (value: string): string =>
     .replace(/[^a-z0-9]+/g, " ").trim();
 
 const excludedTypes = taxonomy.excluded.map((rule) => [new RegExp(rule.pattern), rule.reason] as const);
+const excludedBrands = taxonomy.excludedBrands.map((rule) => [new RegExp(rule.pattern), rule.reason] as const);
 const includedTypes = taxonomy.included.map((rule) => [new RegExp(rule.pattern), rule.reason] as const);
 
 function findRule(value: string, rules: typeof includedTypes): string | null {
@@ -25,6 +26,9 @@ function findRule(value: string, rules: typeof includedTypes): string | null {
 export function classifyBusinessType(name: string, category: string): BusinessTypeResult {
   const normalizedName = normalize(name);
   const normalizedCategory = normalize(category).replace(normalizedName, " ").trim();
+
+  const excludedBrand = findRule(normalizedName, excludedBrands) || findRule(normalizedCategory, excludedBrands);
+  if (excludedBrand) return { decision: "non_potensial", reason: excludedBrand };
 
   const categoryExcluded = findRule(normalizedCategory, excludedTypes);
   const categoryIncluded = findRule(normalizedCategory, includedTypes);
@@ -39,4 +43,3 @@ export function classifyBusinessType(name: string, category: string): BusinessTy
   if (nameIncluded) return { decision: "potensial", reason: nameIncluded };
   return { decision: "unknown", reason: null };
 }
-

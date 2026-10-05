@@ -38,3 +38,5 @@ scraper/dataset*/
 scraper/prediction_samples/
 scraper/temp_predict.jpg
 scraper/trained_model/store_classifier_saved_model/
+.local-tools/
+.online-runtime/

@@ -1,0 +1,56 @@
+.section{min-width:0;display:grid;gap:16px}
+.header{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.header h2{font-size:23px;letter-spacing:-.035em;margin:0 0 7px}
+.header p{font-size:13px;color:#766c5f;margin:0}
+.header label{display:grid;gap:7px;font-size:12px;font-weight:600;min-width:230px;max-width:340px}
+.header select{width:100%;min-height:44px;padding:10px 12px;font:inherit;color:#332d26;background:#fff;border:1px solid #897b6b;border-radius:5px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.canvasWrap{position:relative;min-width:0;border:1px solid #ded8cd;border-radius:8px;overflow:hidden;isolation:isolate}
+.canvas{height:560px;width:100%;background:#f2efe9}
+.canvas:global(.leaflet-container) :global(.leaflet-control-zoom a){width:44px;height:44px;line-height:44px}
+.marker{display:grid;place-items:center;background:transparent;border:0}
+.marker span{display:grid;place-items:center;width:34px;height:34px;background:var(--visit-status-color,#9d4821);color:#fff;border:3px solid #fff;border-radius:50%;font:700 13px/1 Geist,Arial,sans-serif;box-shadow:0 2px 8px #332d2640}
+.selectedMarker span{background:#332d26;outline:3px solid #9d4821;outline-offset:2px}
+.marker:focus-visible{outline:3px solid #332d26;border-radius:50%}
+.popup{font-family:Geist,Arial,sans-serif;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.popup strong{display:block;padding-right:20px;font-size:14px;color:#332d26}
+.popup span{display:block;font-size:11px;color:#766c5f;margin-top:4px}
+.canvas .popup p{margin:8px 0;color:#332d26;white-space:pre-wrap}
+.popup button,.tileMessage button,.fitButton{min-height:44px;padding:8px 12px;border:1px solid #897b6b;border-radius:5px;color:#332d26;background:#fff;font:600 12px/1.4 Geist,Arial,sans-serif}
+.mapToolbar{display:flex;justify-content:flex-end;padding:10px 12px;border-bottom:1px solid #ded8cd;background:#fffdf9}
+.canvas:global(.leaflet-container) :global(.leaflet-popup-close-button){width:44px;height:44px;line-height:44px;font-size:22px;color:#332d26}
+.side{min-width:0;display:grid;gap:12px}
+.details{padding:20px;background:#fffdf9;border:1px solid #ded8cd;border-radius:8px;overflow-wrap:anywhere}
+.details:focus-visible{outline:3px solid #9d4821;outline-offset:3px}
+.status{display:inline-block;font-size:11px;font-weight:600;color:#5e654e;background:#eef0e9;padding:5px 8px;border-radius:4px}
+.details h3{font-size:19px;letter-spacing:-.025em;margin:12px 0 8px}
+.details>p{margin:6px 0;font-size:13px;line-height:1.6;color:#766c5f}
+.details .listName{font-size:12px}
+.details dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 16px;margin:18px 0}
+.details dl>.wideField{grid-column:1/-1}
+.details dl>div{display:grid;gap:4px}
+.details dt{font-size:11px;color:#766c5f}
+.details dd{margin:0;font-size:13px;line-height:1.65;color:#332d26;white-space:pre-wrap}
+.detailActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.detailActions>*{flex:1;white-space:nowrap;border-color:#897b6b}
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.photos button{padding:0;background:#f2efe9;border:1px solid #897b6b;border-radius:5px;cursor:zoom-in;overflow:hidden}
+.photos img{display:block;width:84px;height:68px;object-fit:cover}
+.storeList{display:grid;max-height:440px;overflow:auto;border:1px solid #ded8cd;border-radius:8px;background:#fff}
+.storeList button{display:flex;align-items:center;gap:12px;padding:14px 16px;min-height:64px;text-align:left;background:#fff;border:0;border-bottom:1px solid #e9e0d4;color:#332d26}
+.storeList button:last-child{border-bottom:0}
+.storeList button:hover{background:#f6f2ec}
+.storeList button[aria-pressed=true]{background:#f5eade;border-left:3px solid #9d4821;padding-left:13px}
+.storeList button>span:last-child{min-width:0;display:grid;gap:5px;overflow-wrap:anywhere}
+.storeList strong{font-size:13px;line-height:1.5}
+.storeList small{font-size:11px;color:#766c5f;line-height:1.5}
+.listNumber{font-size:12px;color:#9d4821;font-weight:700;min-width:18px}
+.locationNote{margin:0;font-size:13px;color:#766c5f;line-height:1.7}
+.empty{padding:32px;border:1px dashed #897b6b;border-radius:8px;background:#fffdf9;min-height:300px;display:flex;flex-direction:column;justify-content:center}
+.empty h3{margin:0 0 12px;font-size:20px;letter-spacing:-.03em}
+.empty p{margin:0;font-size:13px;color:#766c5f;line-height:1.7;max-width:55ch}
+.mapMessage{position:absolute;inset:0;z-index:1000;background:#f6f2ec;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;margin:0;padding:20px;font-size:13px;text-align:center;color:#766c5f}
+.tileMessage{position:absolute;bottom:24px;left:12px;right:12px;z-index:1000;padding:12px;background:#fffdf9;border:1px solid #897b6b;border-radius:5px;font-size:12px;color:#766c5f;display:flex;align-items:center;justify-content:space-between;gap:12px}
+@media(max-width:1150px){.layout{grid-template-columns:minmax(0,1fr) 290px;gap:16px}.canvas{height:500px}.details{padding:16px}.storeList button{padding:12px}.storeList button[aria-pressed=true]{padding-left:9px}}
+@media(max-width:950px){.layout{grid-template-columns:1fr}.side{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}.canvas{height:440px}}
+@media(max-width:600px){.header{align-items:stretch;flex-direction:column;gap:16px}.header label{min-width:0;max-width:none}.layout{gap:14px}.side{grid-template-columns:1fr}.canvas{height:360px}.empty{padding:24px;min-height:240px}.storeList{max-height:360px}.tileMessage{align-items:stretch;flex-direction:column}.header h2{font-size:21px}}
