@@ -112,6 +112,11 @@ semua tampilan, insight, serta **Ekspor data laporan**. Grafik kategori dan lege
 juga dapat diklik untuk memfilter. Grafik menampilkan delapan kelompok teratas, dengan
 tombol untuk melihat seluruh kelompok; tabel menggunakan halaman berisi 15 catatan.
 
+Ringkasan memakai warna status dan indikator proporsi. Grafik batang menggunakan skala
+persentase yang sama (0–100% dari data yang ditampilkan). Donat menampilkan rincian status
+saat disorot dengan pointer atau fokus keyboard; klik segmen atau legenda untuk memfilter.
+Panel grafik dan insight menyesuaikan tinggi konten, lalu ditumpuk pada layar HP.
+
 Status Closing berasal dari isian Potensi/Tindak Lanjut "Closing" atau Hasil Prospek
 "Closing", "Berhasil menjadi agen", "Berhasil menjadi merchant", atau "Berhasil mendaftar".
 Kepemilikan Agen/QRIS/EDC saja tidak dihitung sebagai Closing. Tindak Lanjut yang terisi
