@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     "puppeteer",
     "puppeteer-extra",
     "puppeteer-extra-plugin-stealth",
+    "sql.js",
   ],
   images: {
     remotePatterns: [

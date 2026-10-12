@@ -40,7 +40,7 @@ export async function waitForMerchantSearch(jobId: string, signal: AbortSignal, 
     }
     if (data.status === 'done') return data.result;
     if (data.status === 'failed') throw new Error(data.error || 'Pencarian gagal. Silakan coba lagi.');
-    progress(data.status === 'queued' ? 'Menunggu giliran pencarian...' : `Menelusuri jalur: ${data.completed}/${data.total} pencarian selesai.`);
+    progress(data.status === 'queued' ? 'Menunggu giliran pencarian...' : `Menelusuri usaha: ${data.completed}/${data.total} pencarian selesai.`);
     await pause(signal);
   }
   throw new DOMException('Aborted', 'AbortError');

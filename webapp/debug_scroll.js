@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const puppeteer = require("puppeteer-extra");
 const S = require("puppeteer-extra-plugin-stealth");
 puppeteer.use(S());

@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
 import type { Prospect, Visit, VisitList } from "../visit-types";
-import { database, DataError, transaction } from "./database";
+import { database, DataError, transaction, type DatabaseSync } from "./database";
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new DataError("Format data toko tidak sesuai.");
