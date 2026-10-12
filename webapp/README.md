@@ -1,5 +1,39 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+
+## Database laptop
+Aplikasi membutuhkan **Node.js 24** dan memakai SQLite bawaan Node. File database
+dibuat otomatis saat endpoint sesi dibuka, pada `webapp/data/canvasing.sqlite`
+(relatif terhadap folder utama repo). Semua daftar, isian dan foto kunjungan berada
+di file ini. Folder `data` dikecualikan dari Git dan tracing build.
+
+Login diverifikasi server dan memakai cookie HttpOnly selama 30 hari. Empat akun
+prototipe lama tetap tersedia; hash password dan hash token sesi disimpan di SQLite.
+Data disaring berdasarkan akun yang terautentikasi, bukan username dari browser.
+Ini masih akun prototipe bersama; pemegang kredensial akun yang sama melihat data yang sama.
+
+Pada pembaruan pertama, masuk kembali melalui alamat lama untuk memindahkan data
+`localStorage` secara otomatis. Impor bersifat atomik, memiliki receipt agar tidak
+berulang, mempertahankan field/foto/ID toko, dan tidak menimpa catatan di database.
+Toko yang telah dihapus dari database tidak dihidupkan kembali oleh salinan browser lama.
+Salinan lama tidak dihapus dari browser. Kesalahan impor ditampilkan dengan tombol coba lagi.
+
+Penyimpanan baru menunggu konfirmasi server. Konflik perubahan catatan dari perangkat
+lain ditolak agar draft lama tidak menimpa data baru. Database tetap ada setelah server
+atau laptop dimatikan; hasil/job pencarian yang belum disimpan tetap bersifat sementara.
+Perubahan alamat tunnel mengharuskan login kembali, lalu akun membaca database yang sama.
+
+Dari folder `webapp`:
+```sh
+npm run db:status
+npm run db:backup
+```
+Backup konsisten menggunakan SQLite backup API, termasuk saat server masih menyala.
+Hasilnya berada di `webapp/data/backups`. Simpan salinan backup di perangkat lain bila perlu.
+Jangan menghapus folder data atau menyalin hanya file SQLite saat server sedang menulis WAL.
+Path alternatif dapat diatur lewat `BNI_DATABASE_PATH` di `webapp/.env.local`;
+gunakan path absolut yang sama pada semua proses server dan perintah maintenance.
+
 ## Klasifikasi toko
 
 Halaman pencarian menjalankan job di `GET /api/v1/search`, lalu mengambil progresnya lewat
@@ -49,6 +83,23 @@ Python yang memiliki dependensi tersebut. Proses klasifikasi membutuhkan akses s
 foto Google Maps dan dapat menambah waktu pencarian. Endpoint ini memerlukan runtime Node.js
 dan akses lokal ke folder `scraper` beserta modelnya saat deployment.
 
+## Ringkasan akun agen
+
+Halaman **Ringkasan** (`/dashboard`) menggunakan data daftar tersimpan di database laptop dari akun agen
+yang sedang masuk, tanpa angka atau aktivitas contoh. Statistik menghitung jumlah toko
+di seluruh daftar, toko dengan hasil klasifikasi **potensial**, toko berstatus
+**Sudah dikunjungi**, dan toko yang sudah dikunjungi dengan pilihan status agen **Sudah**.
+Setiap toko dihitung per daftar, sama seperti laporan. Hasil pencarian yang belum
+disimpan ke daftar belum masuk statistik ini.
+
+**Kunjungan terbaru** menampilkan maksimal lima catatan toko yang sudah dikunjungi,
+beserta area, hasil yang diisi, dan waktu pembaruan. Penambahan atau penyimpanan catatan
+merekam `updatedAt` otomatis tanpa menambahkan isian tanggal ke form atau kolom Excel.
+Data lama tanpa waktu pembaruan tetap dapat dibaca, tetapi tidak diberi waktu perkiraan.
+Statistik dan catatan mengikuti perubahan, termasuk penghapusan toko, tanpa impor manual.
+Jika belum ada data, jumlahnya 0; jika penyimpanan gagal dibaca, angka diganti tanda
+“—” dan kesalahan ditampilkan. Data berada di database laptop dan dapat diakses dari perangkat lain dengan akun yang sama.
+
 ## Catat kunjungan dan ekspor Excel
 
 Form kunjungan agen dan merchant mengikuti 19 kolom pada sheet **Toko_Jenengan dan Krodan**
@@ -56,8 +107,10 @@ dari template: No, Nama Usaha, kategori, Alamat, Nama PIC, No telp, Gmaps, Produ
 Potensi, Follow up, Catatan, Tindak Lanjut, Foto Kunjungan, Hasil Prospek, Latitude,
 Longitude, Area Kunjungan, dan ID Usaha. Semua isian tetap opsional.
 
-Produk dan LJK dapat diisi dari penyedia Agen/QRIS/EDC atau diedit langsung. Potensi adalah
-catatan peluang produk dari kunjungan. Follow up mencatat perkembangan; Tindak Lanjut
+Produk dan LJK berada di bawah pilihan agen/QRIS/EDC, terisi otomatis dari status dan
+penyedia, serta hanya dapat dibaca. Perubahan jawaban atau penyedia langsung memperbarui
+hasilnya; menekan Simpan kunjungan menyimpan hasil yang sama untuk ekspor Excel. Potensi
+adalah catatan peluang produk dari kunjungan. Follow up mencatat perkembangan; Tindak Lanjut
 memakai kolom yang sama dengan catatan Tindak Lanjut pada data lama. ID Usaha dibuat
 otomatis dengan format `USH-001` dan tetap dipertahankan saat data diperbarui.
 
@@ -66,13 +119,17 @@ Di halaman Kunjungan, **Ekspor daftar ini** mengunduh daftar aktif sebagai `.xls
 area kunjungan, dengan awalan `Toko_`. Foto kunjungan disertakan sebagai gambar pada
 kolom Foto Kunjungan, nomor telepon disimpan sebagai teks agar angka nol awal tetap ada,
 dan koordinat disimpan sebagai angka. Ekspor diproses di browser menggunakan ExcelJS.
-Data kunjungan masih tersimpan di browser untuk akun dan role yang sedang masuk.
+Data kunjungan disimpan di database laptop untuk akun yang sedang masuk.
 
 Kolom pilihan pada **Catat kunjungan** menampilkan semua opsi saat kolom atau tombol
-panahnya diklik, termasuk saat sudah berisi nilai. Ini berlaku untuk Kategori, Produk,
+panahnya diklik, termasuk saat sudah berisi nilai. Ini berlaku untuk Kategori,
 Penyedia agen, penyedia QRIS, bank EDC, Potensi, Tindak Lanjut, dan Hasil Prospek.
 Nilai custom tetap dapat diketik, dan semua kolom tetap opsional. Gunakan tombol
 panah atas/bawah dan Enter untuk memilih, atau Esc untuk menutup daftar pilihan.
+
+Bagian Foto kunjungan memakai tombol **Tambah foto** dan penghitung jumlah foto.
+Foto dapat dibuka sebagai pratinjau atau dihapus; maksimal 3 foto JPG, PNG, atau WebP.
+Membatalkan pemilih file tidak menutup formulir kunjungan.
 
 Tombol **Hapus toko** pada setiap baris menampilkan popup konfirmasi di dalam aplikasi
 dengan nama toko dan daftar tujuan. **Batal**, tombol Esc, atau klik di luar popup menutup
@@ -102,8 +159,9 @@ menggunakan Leaflet yang dibundel aplikasi dan ubin OpenStreetMap.
 Menu **Laporan** tersedia untuk agen (`/dashboard/reports`) dan merchant
 (`/merchant/reports`). Laporan otomatis mengambil catatan berstatus **Sudah dikunjungi**
 dari akun yang sedang masuk. Penyimpanan kunjungan memperbarui laporan tanpa impor manual.
-Data agen dan merchant tetap memakai penyimpanan terpisah di browser; laporan tidak
-menyinkronkan data antarperangkat.
+Data agen dan merchant dipisahkan menurut akun di database laptop. Perangkat lain
+dapat membuka data akun yang sama saat server menyala. Tampilan memperbarui data setiap
+10 detik saat terlihat dan saat kembali ke tab.
 
 Susunan analisis mengikuti contoh `Insight MAP.pbix`: total usaha dikunjungi, Closing,
 perlu tindak lanjut, grafik kategori usaha, proporsi status tindak lanjut, hasil prospek,

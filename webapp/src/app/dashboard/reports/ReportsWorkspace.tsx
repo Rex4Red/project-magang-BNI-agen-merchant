@@ -7,6 +7,7 @@ import { useVisitLists, displayAddress } from '@/lib/canvasing';
 import { FOLLOW_UP_STATUSES, filterReports, groupReports, reportEntries, reportInsights, reportLists, reportPercent, type FollowUpStatus } from '@/lib/visit-reports';
 import { BarChart, StatusChart } from './ReportCharts';
 import styles from './page.module.css';
+import { Icon } from '@/components/Icon';
 
 const VisitedStoresMap = dynamic(() => import('../canvasing/VisitedStoresMap'), { ssr: false, loading: () => <p role="status">Memuat peta kunjungan…</p> });
 const VisitEditor = dynamic(() => import('../canvasing/VisitEditor'), { ssr: false, loading: () => <p role="status">Memuat catatan kunjungan…</p> });
@@ -54,9 +55,9 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
   return <div className={styles.page}>
     <header className={styles.header}>
       <div><h1>Laporan kunjungan</h1><p>Visualisasi dan insight dari usaha yang sudah dikunjungi.</p></div>
-      <div className={styles.headerActions}><Link className="btn btn-secondary" href={visitLink}>Buka kunjungan</Link><button type="button" className="btn btn-primary" disabled={exporting || !!error || !filtered.length} onClick={exportExcel}>{exporting ? 'Menyiapkan Excel…' : 'Ekspor data laporan'}</button></div>
+      <div className={styles.headerActions}><button type="button" className="btn btn-secondary" disabled={exporting || !!error || !filtered.length} onClick={exportExcel}><Icon name="external" />{exporting ? 'Menyiapkan Excel…' : 'Ekspor data laporan'}</button><Link className="btn btn-primary" href={visitLink}><Icon name="pin" />Buka kunjungan</Link></div>
     </header>
-    <p className={styles.sourceNote}>Otomatis diperbarui dari catatan akun {workspace} di browser ini. Hanya status “Sudah dikunjungi” yang dihitung.</p>
+    <p className={styles.sourceNote}>Otomatis diperbarui dari database laptop untuk akun {workspace} yang sedang masuk. Hanya status “Sudah dikunjungi” yang dihitung.</p>
     {error && <div role="alert" className={styles.error}><h2>Data laporan belum dapat dibaca</h2><p>{error}</p><Link className="btn btn-secondary" href={visitLink}>Periksa data kunjungan</Link></div>}
     {exportError && <p role="alert" className={styles.error}>{exportError}</p>}
     {!error && <>
@@ -75,7 +76,7 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
       {!entries.length ? <section className={styles.empty}><h2>Belum ada kunjungan untuk dilaporkan</h2><p>Simpan catatan dengan status “Sudah dikunjungi”. Peta, grafik, dan insight akan terisi otomatis.</p><Link className="btn btn-secondary" href={visitLink}>Buka kunjungan</Link></section>
         : !filtered.length ? <section className={styles.empty}><h2>Tidak ada data yang sesuai filter</h2><p>Ubah pilihan area, kategori, atau status untuk melihat kunjungan lainnya.</p><button type="button" className="btn btn-secondary" onClick={resetFilters}>Tampilkan semua kunjungan</button></section>
         : <>
-          <div className={styles.viewSwitch} role="group" aria-label="Tampilan laporan"><button type="button" aria-pressed={view === 'overview'} onClick={() => setView('overview')}>Grafik & insight</button><button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>Peta persebaran</button></div>
+          <div className={styles.viewSwitch} role="group" aria-label="Tampilan laporan"><button type="button" aria-pressed={view === 'overview'} onClick={() => setView('overview')}><Icon name="chart" />Grafik & insight</button><button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}><Icon name="map" />Peta persebaran</button></div>
           {view === 'overview' ? <div className={styles.visuals}>
             <div className={styles.visualColumn}><BarChart title="Kategori usaha" groups={groupReports(filtered, 'category')} total={filtered.length} selected={validFilters.category} onSelect={key => changeFilter('category', key)} /><BarChart title="Hasil prospek" groupLabel="hasil" groups={groupReports(filtered, 'prospect')} total={filtered.length} /></div>
             <div className={styles.visualColumn}><StatusChart counts={counts} total={filtered.length} selected={validFilters.status} onSelect={key => changeFilter('status', key)} /><section className={`${styles.panel} ${styles.insights}`} aria-labelledby="report-insights"><h2 id="report-insights">Insight</h2><p className={styles.insightCaption}>Berdasarkan kunjungan yang ditampilkan.</p><ul>{insights.map((insight, index) => <li key={insight.heading}><span className={styles.insightNumber} aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><div><h3>{insight.heading}</h3><p>{insight.text}</p></div></li>)}</ul></section></div>
@@ -83,7 +84,7 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
             <div className={styles.mapLegend} aria-label="Warna status pada peta">{FOLLOW_UP_STATUSES.map(status => <span key={status.key}><span className={styles.swatch} aria-hidden="true" style={{ background: status.color }} />{status.label}</span>)}</div>
             <VisitedStoresMap lists={selectedLists} workspace={workspace} reportMode showListFilter={false} onEdit={(listId, visitId) => setEditing({ listId, visitId })} />
           </section>}
-          <section className={styles.panel} aria-labelledby="report-data">
+          <section className={`${styles.panel} ${styles.tablePanel}`} aria-labelledby="report-data">
             <header className={styles.panelHeading}><h2 id="report-data">Data kunjungan</h2><span>{count(filtered.length)} usaha</span></header>
             <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="Tabel data kunjungan">
               <table className={styles.table}><thead><tr><th scope="col">No</th><th scope="col">Nama usaha</th><th scope="col">Status tindak lanjut</th><th scope="col">Hasil prospek</th><th scope="col">Catatan</th><th scope="col">Detail</th></tr></thead><tbody>{shown.map((entry, index) => {
@@ -91,7 +92,7 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
                 return <tr key={entry.key}>
                   <td data-label="No">{activePage * PAGE_SIZE + index + 1}</td>
                   <td className={styles.nameCell} data-label="Nama usaha"><strong>{entry.store.name || 'Toko belum diberi nama'}</strong><span>{entry.category} · {entry.area}</span><span>{displayAddress(entry.store.address) || 'Alamat belum diisi'}</span></td>
-                  <td data-label="Status tindak lanjut"><span className={styles.statusText}><span className={styles.swatch} aria-hidden="true" style={{ background: status.color }} />{status.label}</span></td>
+                  <td data-label="Status tindak lanjut"><span className={styles.statusText} data-status={status.key}><span className={styles.swatch} aria-hidden="true" style={{ background: status.color }} />{status.label}</span></td>
                   <td data-label="Hasil prospek">{entry.prospect}</td>
                   <td className={styles.notesCell} data-label="Catatan">{entry.store.notes?.trim() ? entry.store.notes.length > 160 ? `${entry.store.notes.slice(0, 160)}…` : entry.store.notes : 'Belum diisi'}</td>
                   <td className={styles.actionCell} data-label="Detail"><button type="button" className="btn btn-secondary btn-sm" aria-label={`Lihat catatan ${entry.store.name || 'toko belum diberi nama'}`} onClick={() => setEditing({ listId: entry.listId, visitId: entry.store.visitId })}>Lihat catatan</button></td>

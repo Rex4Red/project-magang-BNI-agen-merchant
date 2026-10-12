@@ -1,195 +1,159 @@
 "use client";
+import { useEffect, useSyncExternalStore } from "react";
+import { useSession, type Session } from "./session";
+import type { Prospect, Visit, VisitList } from "./visit-types";
+export type { Prospect, Visit, VisitList } from "./visit-types";
 
-import { useSyncExternalStore } from "react";
-import { readSession } from "./session";
-
-export interface Prospect {
-  id: string;
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  rating: number;
-  reviewCount: number;
-  category: string;
-  photoUrl: string | null;
-  url: string;
-  classification?: {
-    label: "potensial" | "non_potensial" | "unavailable";
-    confidence: number | null;
-    reason?: "no_photo" | "image_error" | "business_unknown" | "low_confidence" | "request_failed" | null;
-    source?: "image_model" | "business_type";
-    businessReason?: string | null;
-  };
+type DataState = { lists: VisitList[]; error: string; loading: boolean; migrationError: string; notice: string };
+type ServerData = { lists: VisitList[]; databaseId: string; revision: number; username: string; result?: Record<string, unknown> };
+type Cache = { state: DataState; databaseId?: string; revision?: number; initialized?: boolean; migratedDatabaseId?: string; pending?: Promise<void> };
+const initial: DataState = { lists: [], error: "", loading: true, migrationError: "", notice: "" };
+const caches = new Map<string, Cache>();
+const listeners = new Set<() => void>();
+let activeUser: Session | null = null;
+function keyFor(user: Session) { return user.username; }
+function cacheFor(user: Session) {
+  const key = keyFor(user); let cache = caches.get(key);
+  if (!cache) { cache = { state: initial }; caches.set(key, cache); }
+  return cache;
 }
-
-export interface Visit extends Prospect {
-  visitId: string;
-  status: "planned" | "visited";
-  notes: string;
-  phone?: string;
-  pic?: string;
-  businessId?: string;
-  product?: string;
-  financialInstitutions?: string;
-  potential?: string;
-  followUpNotes?: string;
-  agentStatus?: "unknown" | "yes" | "no";
-  agentProvider?: string;
-  qrisStatus?: "unknown" | "yes" | "no";
-  qrisProvider?: string;
-  qrisProviders?: string[];
-  edcStatus?: "unknown" | "yes" | "no";
-  edcProviders?: string[];
-  followUp?: string;
-  prospectResult?: string;
-  visitArea?: string;
-  visitedAt?: string;
-  visitPhotos?: string[];
-  locationAccuracy?: number;
-  locationCapturedAt?: string;
+function publish(cache: Cache, patch: Partial<DataState>) {
+  cache.state = { ...cache.state, ...patch }; listeners.forEach(listener => listener());
 }
-
-export interface VisitList {
-  id: string;
-  name: string;
-  area: string;
-  source: { mode: "area" | "map" | "road"; selection?: "manual"; bounds?: string; polygon?: [number, number][]; road?: string; lengthMeters?: number; corridorMeters?: number };
-  createdAt: string;
-  updatedAt: string;
-  stores: Visit[];
+function apply(cache: Cache, user: Session, data: ServerData, loading = false) {
+  if (data.username !== user.username) throw new Error("Akun yang sedang masuk berubah. Muat ulang halaman.");
+  if (cache.databaseId === data.databaseId && cache.revision !== undefined && data.revision < cache.revision) return;
+  cache.databaseId = data.databaseId; cache.revision = data.revision; cache.initialized = true;
+  publish(cache, { lists: data.lists, error: "", loading });
 }
-
-const EMPTY = '{"version":1,"lists":[]}';
-const EVENT = "canvas-visits-changed";
-
-function storageKey() {
-  const user = readSession(localStorage.getItem("user"));
-  if (!user?.username) throw new Error("Masuk kembali untuk menyimpan daftar kunjungan.");
-  return user.workspace === "merchant" ? `bni-canvas:merchant-visits:v1:${user.username}` : `bni-canvas:visits:v1:${user.username}`;
+async function responseData(response: Response): Promise<ServerData> {
+  let data;
+  try { data = await response.json(); } catch { throw new Error("Respons database belum dapat dibaca. Coba lagi."); }
+  if (!response.ok) throw new Error(data.error || "Gagal mengakses database laptop.");
+  return data;
 }
-
-function snapshot() {
-  try { return localStorage.getItem(storageKey()) || EMPTY; }
-  catch { return "unavailable"; }
+function headers(user: Session) { return { "Content-Type": "application/json", "x-canvas-client": "1", "x-canvas-account": user.username }; }
+async function post(user: Session, body: Record<string, unknown>, commandId = crypto.randomUUID()) {
+  const response = await fetch("/api/v1/visits", { method: "POST", headers: headers(user), body: JSON.stringify({ ...body, commandId }),
+    signal: AbortSignal.timeout(45000) });
+  return responseData(response);
 }
-
-function parse(raw: string): VisitList[] {
-  const data = JSON.parse(raw);
-  if (data.version !== 1 || !Array.isArray(data.lists) || data.lists.some((list: VisitList) =>
-    !list.id || !list.name || !Array.isArray(list.stores))) {
-    throw new Error("Format daftar kunjungan tidak dapat dibaca.");
-  }
-  assignBusinessIds(data.lists);
-  return data.lists;
-}
-
-function assignBusinessIds(lists: VisitList[]) {
-  const used = new Set(lists.flatMap(list => list.stores.map(store => store.businessId).filter(Boolean)));
-  let next = [...used].reduce((max, id) => Math.max(max, Number(id?.match(/^USH-(\d+)$/)?.[1]) || 0), 0) + 1;
-  for (const list of lists) for (const store of list.stores) {
-    if (!store.businessId) {
-      store.businessId = `USH-${String(next++).padStart(3, '0')}`;
+async function migrate(user: Session, cache: Cache) {
+  if (cache.migratedDatabaseId === cache.databaseId) return;
+  const key = user.workspace === "merchant" ? `bni-canvas:merchant-visits:v1:${user.username}` : `bni-canvas:visits:v1:${user.username}`;
+  let raw: string | null = null;
+  try { raw = localStorage.getItem(key); } catch { /* The database works even if legacy browser storage is unavailable. */ }
+  if (!raw) { cache.migratedDatabaseId = cache.databaseId; return; }
+  const markerKey = `bni-canvas:database-import:v1:${user.username}`;
+  const fingerprint = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw)))].map(b => b.toString(16).padStart(2, "0")).join("");
+  try {
+    const marker = JSON.parse(localStorage.getItem(markerKey) || "null");
+    if (marker?.databaseId === cache.databaseId && marker.fingerprint === fingerprint) {
+      cache.migratedDatabaseId = cache.databaseId; return;
     }
-  }
+  } catch { /* An unreadable marker is retried; the server import is idempotent. */ }
+  publish(cache, { loading: true });
+  const data = await post(user, { action: "import", legacyRaw: raw });
+  apply(cache, user, data);
+  cache.migratedDatabaseId = data.databaseId;
+  try { localStorage.setItem(markerKey, JSON.stringify({ databaseId: data.databaseId, fingerprint })); }
+  catch { /* The server receipt prevents duplicates if this marker cannot be stored. */ }
+  publish(cache, { migrationError: "", notice: data.result?.alreadyImported ? "" :
+    `${data.result?.importedLists || 0} daftar dan ${data.result?.importedStores || 0} toko dari browser sudah dipindahkan ke database.` });
 }
-
+export async function refreshVisits(force = false) {
+  const user = activeUser; if (!user) return;
+  const cache = cacheFor(user); if (cache.pending) return cache.pending;
+  cache.pending = (async () => {
+    try {
+      const etag = cache.databaseId && !force ? `"${cache.databaseId}:${user.username}:${cache.revision}"` : "";
+      const response = await fetch("/api/v1/visits", { cache: "no-store", headers: { ...headers(user), ...(etag ? { "If-None-Match": etag } : {}) },
+        signal: AbortSignal.timeout(45000) });
+      if (response.status !== 304) apply(cache, user, await responseData(response), !cache.initialized);
+      else publish(cache, { error: "", loading: false });
+      try { await migrate(user, cache); publish(cache, { loading: false }); }
+      catch (error) { publish(cache, { loading: false, migrationError: error instanceof Error ? error.message : "Data lama belum dapat dipindahkan." }); }
+    } catch (error) {
+      publish(cache, { loading: false, error: error instanceof Error ? error.message : "Database laptop belum dapat dihubungi. Coba lagi." });
+    } finally { cache.pending = undefined; }
+  })();
+  return cache.pending;
+}
 function subscribe(listener: () => void) {
-  window.addEventListener("storage", listener);
-  window.addEventListener(EVENT, listener);
-  return () => {
-    window.removeEventListener("storage", listener);
-    window.removeEventListener(EVENT, listener);
-  };
-}
-
-export function useVisitLists() {
-  const raw = useSyncExternalStore(subscribe, snapshot, () => EMPTY);
-  try { return { lists: parse(raw), error: "" }; }
-  catch { return { lists: [] as VisitList[], error: "Daftar tersimpan tidak dapat dibaca. Periksa akses penyimpanan browser; data lama tidak ditimpa." }; }
-}
-
-function persist(lists: VisitList[]) {
-  assignBusinessIds(lists);
-  try { localStorage.setItem(storageKey(), JSON.stringify({ version: 1, lists })); }
-  catch { throw new Error("Gagal menyimpan. Penyimpanan browser mungkin penuh atau tidak diizinkan."); }
-  window.dispatchEvent(new Event(EVENT));
-}
-
-// Search IDs are only unique within one response, so do not use them for deduplication.
-function identity(store: Prospect) {
-  return `${store.name.trim().toLowerCase()}|${store.lat.toFixed(6)}|${store.lng.toFixed(6)}|${store.lat || store.lng ? "" : store.address.trim().toLowerCase()}`;
-}
-
-export function saveVisitList(input: {
-  listId?: string; name: string; area: string; source: VisitList["source"]; stores: Prospect[];
-}) {
-  if (!input.stores.length) throw new Error("Pilih minimal satu toko.");
-  if (!input.listId && (!input.name.trim() || !input.area.trim())) throw new Error("Isi nama daftar dan area kunjungan.");
-  const lists = parse(snapshot());
-  const existing = input.listId ? lists.find((list) => list.id === input.listId) : undefined;
-  if (input.listId && !existing) throw new Error("Daftar tujuan sudah tidak tersedia.");
-  const now = new Date().toISOString();
-  const list: VisitList = existing || {
-    id: crypto.randomUUID(), name: input.name.trim(), area: input.area.trim(), source: input.source,
-    createdAt: now, updatedAt: now, stores: [],
-  };
-  const seen = new Set(list.stores.map(identity));
-  let added = 0;
-  for (const store of input.stores) {
-    const key = identity(store);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    list.stores.push({ ...store, visitId: crypto.randomUUID(), status: "planned", notes: "" });
-    added++;
+  listeners.add(listener);
+  if (listeners.size === 1) {
+    timer = setInterval(() => { if (!document.hidden) void refreshVisits(); }, 10000);
+    window.addEventListener("focus", focusRefresh);
+    window.addEventListener("canvas-session", changedAccount);
+    document.addEventListener("visibilitychange", focusRefresh);
   }
-  list.updatedAt = now;
-  if (!existing) lists.unshift(list);
-  persist(lists);
-  return { id: list.id, name: list.name, added, skipped: input.stores.length - added };
+  return () => {
+    listeners.delete(listener);
+    if (!listeners.size) {
+      clearInterval(timer); window.removeEventListener("focus", focusRefresh);
+      window.removeEventListener("canvas-session", changedAccount);
+      document.removeEventListener("visibilitychange", focusRefresh);
+    }
+  };
 }
-
-export function updateVisit(listId: string, visitId: string, patch: Partial<Omit<Visit, "id" | "visitId">>) {
-  const lists = parse(snapshot());
-  const list = lists.find((item) => item.id === listId);
-  const store = list?.stores.find((item) => item.visitId === visitId);
-  if (!list || !store) throw new Error("Toko tersimpan tidak ditemukan.");
-  Object.assign(store, patch);
-  list.updatedAt = new Date().toISOString();
-  persist(lists);
+let timer: ReturnType<typeof setInterval>;
+function focusRefresh() { if (!document.hidden) void refreshVisits(); }
+function changedAccount() { caches.clear(); activeUser = null; listeners.forEach(listener => listener()); }
+export function useVisitLists() {
+  const { user } = useSession();
+  const state = useSyncExternalStore(subscribe, () => user ? cacheFor(user).state : initial, () => initial);
+  useEffect(() => {
+    activeUser = user;
+    if (user) void refreshVisits();
+  }, [user?.username]); // eslint-disable-line react-hooks/exhaustive-deps
+  return state;
 }
-
-export function deleteVisit(listId: string, visitId: string) {
-  const lists = parse(snapshot());
-  const list = lists.find(item => item.id === listId);
-  const index = list?.stores.findIndex(item => item.visitId === visitId) ?? -1;
-  if (!list || index === -1) throw new Error("Toko tersimpan tidak ditemukan. Muat ulang daftar kunjungan.");
-  list.stores.splice(index, 1);
-  list.updatedAt = new Date().toISOString();
-  persist(lists);
+export function dismissDatabaseNotice() {
+  if (activeUser) publish(cacheFor(activeUser), { notice: "" });
 }
-
-export function addManualVisit(listId: string, visit: Visit) {
-  const lists = parse(snapshot());
-  const list = lists.find((item) => item.id === listId);
-  if (!list) throw new Error("Daftar kunjungan tidak ditemukan.");
-  list.stores.push({ ...visit, id: crypto.randomUUID(), visitId: crypto.randomUUID() });
-  list.updatedAt = new Date().toISOString();
-  persist(lists);
+export async function retryLegacyImport() {
+  if (activeUser) cacheFor(activeUser).migratedDatabaseId = undefined;
+  await refreshVisits(true);
+}
+async function command(body: Record<string, unknown>) {
+  const user = activeUser;
+  if (!user) throw new Error("Masuk kembali untuk menyimpan kunjungan.");
+  const cache = cacheFor(user);
+  if (!cache.initialized || cache.state.loading || cache.state.error)
+    throw new Error("Tunggu data database selesai dimuat atau coba hubungkan kembali.");
+  try {
+    const data = await post(user, body); apply(cache, user, data); return data.result || {};
+  } catch (error) {
+    void refreshVisits(true);
+    throw error instanceof Error ? error : new Error("Penyimpanan belum dapat dipastikan. Periksa daftar lalu coba lagi.");
+  }
+}
+function expectedTime(listId: string, visitId: string) {
+  const store = activeUser && cacheFor(activeUser).state.lists.find(l => l.id === listId)?.stores.find(s => s.visitId === visitId);
+  if (!store) throw new Error("Toko tersimpan tidak ditemukan. Muat ulang daftar.");
+  return store.updatedAt || null;
+}
+export async function saveVisitList(input: { listId?: string; name: string; area: string; source: VisitList["source"]; stores: Prospect[] }) {
+  const result = await command({ action: "save-list", input });
+  return result as { id: string; name: string; added: number; skipped: number };
+}
+export async function updateVisit(listId: string, visitId: string, patch: Partial<Omit<Visit, "id" | "visitId">>, expectedUpdatedAt = expectedTime(listId, visitId)) {
+  await command({ action: "update-visit", listId, visitId, patch, expectedUpdatedAt });
+  return activeUser ? cacheFor(activeUser).state.lists.find(l => l.id === listId)?.stores.find(s => s.visitId === visitId) : undefined;
+}
+export async function deleteVisit(listId: string, visitId: string, expectedUpdatedAt = expectedTime(listId, visitId)) {
+  await command({ action: "delete-visit", listId, visitId, expectedUpdatedAt });
+}
+export async function addManualVisit(listId: string, visit: Visit) {
+  await command({ action: "add-manual", listId, visit });
 }
 export const displayCategory = (store: Prospect): string => {
   let category = store.category.trim();
-  if (category.toLowerCase().startsWith(store.name.toLowerCase())) {
-    category = category.slice(store.name.length);
-  }
-  category = category
-    .replace(/^\d[,.]\d(?:\([\d.,]+\))?/, "")
-    .replace(/^Tidak ada ulasan/i, "")
-    .replace(/(Segera tutup|Buka 24 jam|Buka|Tutup).*$/i, "")
-    .trim();
+  if (category.toLowerCase().startsWith(store.name.toLowerCase())) category = category.slice(store.name.length);
+  category = category.replace(/^\d[,.]\d(?:\([\d.,]+\))?/, "").replace(/^Tidak ada ulasan/i, "")
+    .replace(/(Segera tutup|Buka 24 jam|Buka|Tutup).*$/i, "").trim();
   return category || "Jenis usaha belum tersedia";
 };
-
 export const displayAddress = (address: string): string =>
   address.replace(/(Buka 24 jam|Segera tutup|Buka|Tutup)$/i, "").trim();
 

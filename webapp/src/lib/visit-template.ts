@@ -15,21 +15,30 @@ export const CATEGORY_OPTIONS = [
   'Toko Umum/Lain-Lain', 'Laundry',
 ];
 
-export function visitProduct(visit: Visit): string {
-  if (visit.product !== undefined) return visit.product;
+export function visitPaymentDetails(visit: Visit): { product: string; financialInstitutions: string } {
   const agent = visit.agentStatus === 'yes', qris = visit.qrisStatus === 'yes', edc = visit.edcStatus === 'yes';
-  return agent && (qris || edc) ? 'Merchant dan Agen' : agent ? 'Agen'
+  const product = agent && (qris || edc) ? 'Merchant dan Agen' : agent ? 'Agen'
     : qris && edc ? 'QR dan EDC' : qris ? 'QRIS' : edc ? 'EDC' : '';
+  const providers = (values: string[]) => values.map(value => value.trim())
+    .filter((value, index, all) => value && all.findIndex(other => other.toLowerCase() === value.toLowerCase()) === index)
+    .join(', ');
+  const agentProvider = visit.agentProvider?.trim();
+  const qrisProviders = providers(visit.qrisProviders ?? (visit.qrisProvider ? [visit.qrisProvider] : []));
+  const edcProviders = providers(visit.edcProviders ?? []);
+  const financialInstitutions = [
+    agent && agentProvider ? `Agen - ${agentProvider}` : '',
+    qris && qrisProviders ? `QRIS - ${qrisProviders}` : '',
+    edc && edcProviders ? `EDC - ${edcProviders}` : '',
+  ].filter(Boolean).join('\n');
+  return { product, financialInstitutions };
+}
+
+export function visitProduct(visit: Visit): string {
+  return visit.product ?? visitPaymentDetails(visit).product;
 }
 
 export function visitInstitutions(visit: Visit): string {
-  if (visit.financialInstitutions !== undefined) return visit.financialInstitutions;
-  return [
-    visit.agentStatus === 'yes' && visit.agentProvider ? `Agen - ${visit.agentProvider}` : '',
-    visit.qrisStatus === 'yes' && (visit.qrisProviders?.length || visit.qrisProvider)
-      ? `QRIS - ${(visit.qrisProviders?.length ? visit.qrisProviders : [visit.qrisProvider]).filter(Boolean).join(', ')}` : '',
-    visit.edcStatus === 'yes' && visit.edcProviders?.length ? `EDC - ${visit.edcProviders.join(', ')}` : '',
-  ].filter(Boolean).join('\n');
+  return visit.financialInstitutions ?? visitPaymentDetails(visit).financialInstitutions;
 }
 
 export function isGoogleMapsLink(value: string): boolean {

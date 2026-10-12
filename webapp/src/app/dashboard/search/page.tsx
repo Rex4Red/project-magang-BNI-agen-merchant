@@ -73,6 +73,7 @@ export default function SearchPage() {
   const [targetList, setTargetList] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
+  const [saving, setSaving] = useState(false);
   const [searchContext] = useAgentSearchField('searchContext');
   const [searchMode, setSearchMode] = useAgentSearchField('searchMode');
   const [polygon, setPolygon] = useAgentSearchField('polygon');
@@ -222,7 +223,7 @@ export default function SearchPage() {
 
         const potensial = isPotensial(store);
         const iconColor = store.classification?.label === "unavailable" || !store.classification
-          ? "#958b7d" : potensial ? "#bc572a" : "#bbb2a5";
+          ? "#805b16" : potensial ? "#31624a" : "#71717a";
         const iconSymbol = !store.classification || store.classification.label === "unavailable"
           ? "?" : potensial ? "P" : "–";
 
@@ -277,10 +278,10 @@ export default function SearchPage() {
     if (!mapReady || !map || !L || searchMode !== "map") return;
     const group = L.layerGroup().addTo(map);
     const locked = isSearching || isClassifying;
-    if (polygon.length >= 3) L.polygon(polygon, { color: areaError ? '#b42318' : '#bc572a', fillOpacity: .15, interactive: false }).addTo(group);
-    else if (polygon.length > 1) L.polyline(polygon, { color: '#bc572a', interactive: false }).addTo(group);
+    if (polygon.length >= 3) L.polygon(polygon, { color: areaError ? '#9d352e' : '#a84d27', fillOpacity: .08, interactive: false }).addTo(group);
+    else if (polygon.length > 1) L.polyline(polygon, { color: '#a84d27', interactive: false }).addTo(group);
     polygon.forEach((point, index) => {
-      const marker = L!.marker(point, { draggable: drawing && !locked, icon: L!.divIcon({ className: styles.areaVertex, html: `<span>${index + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(group);
+      const marker = L!.marker(point, { draggable: drawing && !locked, icon: L!.divIcon({ className: styles.areaVertex, html: `<span>${index + 1}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(group);
       marker.on('dragend', () => { const position = marker.getLatLng(); setPolygon(current => current.map((p, i) => i === index ? [position.lat, position.lng] : p)); });
     });
     const click = (event: import('leaflet').LeafletMouseEvent) => {
@@ -346,7 +347,7 @@ export default function SearchPage() {
   return (
     <div className={styles.searchPage}>
       <div className={styles.pageHeader}>
-        <span className={styles.pageEyebrow}>WORKSPACE / EKSPLORASI</span>
+        <span className={styles.pageEyebrow}>Canvasing agen</span>
         <h1>Pencarian toko</h1>
         <p>Cari kelontong dan sembako berdasarkan nama daerah atau area yang Anda gambar di peta.</p>
       </div>
@@ -418,7 +419,7 @@ export default function SearchPage() {
       {classificationError && <div className={styles.errorBox}>{classificationError}</div>}
       {saveNotice && <div className={styles.saveNotice} role="status">{saveNotice} <Link href="/dashboard/canvasing">Buka Kunjungan →</Link></div>}
       {saveOpen && <section className={styles.savePanel} aria-label="Simpan daftar canvasing">
-        <div><h2>Simpan ke daftar canvasing</h2><p>{chosen.length} toko dipilih. Daftar tersimpan di browser ini, sesuai akun yang masuk.</p></div>
+        <div><h2>Simpan ke daftar canvasing</h2><p>{chosen.length} toko dipilih. Daftar disimpan ke database laptop untuk akun yang masuk.</p></div>
         <label>Tujuan penyimpanan<select value={targetList} onChange={(event) => setTargetList(event.target.value)}>
           <option value="">Buat daftar baru</option>
           {visitLists.map((list) => <option value={list.id} key={list.id}>{list.name} · {list.area}</option>)}
@@ -427,15 +428,17 @@ export default function SearchPage() {
           <label>Area kunjungan<input maxLength={100} value={visitArea} onChange={(event) => setVisitArea(event.target.value)} placeholder="Contoh: Seturan" /></label></>}
         {targetList && <p>Toko ditambahkan ke daftar terpilih. Toko yang sudah ada akan dilewati.</p>}
         {(saveError || storageError) && <p role="alert">{saveError || storageError}</p>}
-        <div className={styles.saveActions}><button className="btn btn-secondary" onClick={() => setSaveOpen(false)}>Batal</button>
-          <button className="btn btn-primary" disabled={!chosen.length || !!storageError || (!targetList && (!listName.trim() || !visitArea.trim()))} onClick={() => {
+        <div className={styles.saveActions}><button className="btn btn-secondary" disabled={saving} onClick={() => setSaveOpen(false)}>Batal</button>
+          <button className="btn btn-primary" disabled={saving || !chosen.length || !!storageError || (!targetList && (!listName.trim() || !visitArea.trim()))} onClick={async () => {
+            if (saving) return; setSaving(true); setSaveError("");
             try {
-              const saved = saveVisitList({ listId: targetList || undefined, name: listName, area: visitArea,
+              const saved = await saveVisitList({ listId: targetList || undefined, name: listName, area: visitArea,
                 source: { mode: searchContext.mode, bounds: searchContext.bounds, polygon: searchContext.polygon }, stores: results.filter((store) => chosen.includes(store.id)) });
               setSaveNotice(`${saved.added} toko disimpan ke “${saved.name}”.${saved.skipped ? ` ${saved.skipped} toko sudah ada dan dilewati.` : ""}`);
               setSaveOpen(false); setChosen([]);
             } catch (err) { setSaveError(err instanceof Error ? err.message : "Gagal menyimpan daftar."); }
-          }}>Simpan daftar</button></div>
+            finally { setSaving(false); }
+          }}>{saving ? "Menyimpan…" : "Simpan daftar"}</button></div>
       </section>}
 
       {/* Map + Results Layout */}
@@ -463,6 +466,7 @@ export default function SearchPage() {
             <div className={styles.storePopup}>
               <button
                 className={styles.popupClose}
+                aria-label="Tutup detail toko"
                 onClick={() => setSelectedStore(null)}
               >
                 <Icon name="close" />
@@ -514,6 +518,8 @@ export default function SearchPage() {
           {/* Results */}
           {!isSearching && hasSearched && results.length > 0 && (
             <>
+              <div className={styles.resultTitle}><h2>Hasil pencarian</h2><span className="badge badge-info">{results.length} toko</span></div>
+              <div className={styles.resultStatus} role="status"><Icon name={isClassifying ? "refresh" : "check"} />{isClassifying ? "Memproses penilaian toko…" : "Pencarian selesai"}</div>
               <div className={styles.selectionBar}>
                 <span>{chosen.length} toko dipilih</span>
                 <button className="btn btn-secondary btn-sm" disabled={!potensialCount || isClassifying} onClick={() => setChosen(results.filter(isPotensial).map((store) => store.id))}>Pilih semua potensial</button>
@@ -537,19 +543,14 @@ export default function SearchPage() {
                   </span>
                   {withoutPhotoCount > 0 && <span>{withoutPhotoCount} tanpa foto</span>}
                 </div>
-                <label className={styles.toggle}>
-                  <input
-                    type="checkbox"
-                    checked={filterPotensial}
-                    onChange={(e) => setFilterPotensial(e.target.checked)}
-                  />
-                  <span className={styles.toggleSlider} />
-                  <span className={styles.toggleLabel}>Potensial</span>
-                </label>
+                <div className={styles.resultFilters} role="group" aria-label="Filter hasil pencarian">
+                  <button type="button" aria-pressed={!filterPotensial} onClick={() => setFilterPotensial(false)}>Semua ({results.length})</button>
+                  <button type="button" aria-pressed={filterPotensial} onClick={() => setFilterPotensial(true)}>Potensial ({potensialCount})</button>
+                </div>
               </div>
 
               <div className={styles.storeList}>
-                {filteredResults.map((result, index) => (
+                {filteredResults.map((result) => (
                   <div
                     key={result.id}
                     className={`${styles.storeCard} ${
@@ -560,7 +561,6 @@ export default function SearchPage() {
                     } ${
                       selectedStore?.id === result.id ? styles.cardSelected : ""
                     }`}
-                    style={{ animationDelay: `${index * 0.03}s` }}
                     onClick={() => selectStore(result)}
                   >
                     <input type="checkbox" className={styles.storeCheckbox} aria-label={`Pilih ${result.name}`} checked={chosen.includes(result.id)}
@@ -568,7 +568,7 @@ export default function SearchPage() {
                     <StoreThumbnail name={result.name} url={result.photoUrl} className={styles.storePhoto} />
                     <div className={styles.storeInfo}>
                       <div className={styles.storeHeader}>
-                        <h3>{result.name}</h3>
+                        <h3><button type="button" className={styles.storeTitle} onClick={(event) => { event.stopPropagation(); selectStore(result); }} aria-label={`Lihat detail ${result.name}`}>{result.name}</button></h3>
                         <span
                           className={`badge ${result.classification?.label === "potensial"
                             ? "badge-success" : result.classification?.label === "non_potensial"

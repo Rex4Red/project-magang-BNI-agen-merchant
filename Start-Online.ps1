@@ -6,6 +6,8 @@ $runtimeDir = Join-Path $projectDir '.online-runtime'
 $toolsDir = Join-Path $projectDir '.local-tools'
 $statePath = Join-Path $runtimeDir 'state.json'
 $cloudflaredPath = Join-Path $toolsDir 'cloudflared.exe'
+$taskNodeMajor = [int]((& node.exe -p "process.versions.node.split('.')[0]") | Select-Object -Last 1)
+if ($taskNodeMajor -ne 24) { throw 'Database laptop membutuhkan Node.js 24. Gunakan Node.js 24 lalu jalankan kembali.' }
 
 if (Test-Path -LiteralPath $statePath) {
     $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json

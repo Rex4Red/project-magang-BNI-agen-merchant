@@ -35,7 +35,7 @@ export function StatusChart({ counts, total, selected, onSelect }: {
     <header className={styles.panelHeading}><div><h2 id={id}>Status tindak lanjut</h2><p className={styles.chartHint}>Pilih status untuk memfilter laporan.</p></div></header>
     <div className={styles.donutLayout}>
       <div className={styles.donut} aria-hidden="true">
-        <svg viewBox="0 0 180 180"><circle cx="90" cy="90" r="66" fill="none" stroke="#fffdf9" strokeWidth="24" />
+        <svg viewBox="0 0 180 180"><circle cx="90" cy="90" r="66" fill="none" stroke="#f0f0f2" strokeWidth="24" />
           {FOLLOW_UP_STATUSES.map((status, index) => {
             const length = total ? counts[status.key] / total * circumference : 0;
             const start = total ? FOLLOW_UP_STATUSES.slice(0, index).reduce((sum, preceding) => sum + counts[preceding.key], 0) / total * circumference : 0;

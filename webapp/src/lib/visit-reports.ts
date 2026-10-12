@@ -1,10 +1,10 @@
 import { displayCategory, type Visit, type VisitList } from './canvasing';
 
 export const FOLLOW_UP_STATUSES = [
-  { key: 'closing', label: 'Closing', color: '#3d6654' },
-  { key: 'pending', label: 'Perlu tindak lanjut', color: '#a94e25' },
-  { key: 'none', label: 'Tidak ada tindak lanjut', color: '#6b6155' },
-  { key: 'unknown', label: 'Belum ditentukan', color: '#896946' },
+  { key: 'closing', label: 'Closing', color: '#27272a' },
+  { key: 'pending', label: 'Perlu tindak lanjut', color: '#805b16' },
+  { key: 'none', label: 'Tidak ada tindak lanjut', color: '#71717a' },
+  { key: 'unknown', label: 'Belum ditentukan', color: '#a84d27' },
 ] as const;
 export type FollowUpStatus = typeof FOLLOW_UP_STATUSES[number]['key'];
 export interface ReportEntry {

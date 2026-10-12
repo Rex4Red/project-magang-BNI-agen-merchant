@@ -1,22 +1,56 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
 import { Icon } from "@/components/Icon";
+import { useVisitLists, refreshVisits, displayCategory } from "@/lib/canvasing";
+import { dashboardSummary } from "@/lib/dashboard-summary";
+import { followUpStatus } from "@/lib/visit-reports";
 import styles from "./page.module.css";
-const metrics=[["384","Toko ditemukan"],["208","Usaha potensial"],["87","Sudah dikunjungi"],["34","Menjadi agen"]];
-const activities=[
- ["Toko Sembako Barokah","Tertarik","2 jam lalu"],
- ["Warung Goyang Indah Mulia","Belum tertarik","3 jam lalu"],
- ["Toko KAFA 2 Seturan","Menjadi agen","5 jam lalu"],
- ["Grosir Sembako Manja","Dijadwalkan","Kemarin"],
- ["Toko Ansoruna","Ditolak","Kemarin"],
-];
-export default function DashboardPage(){return <div className={styles.dashboard}>
- <div className={styles.heading}><div><h1>Ringkasan</h1></div><p>Data toko dan kunjungan canvasing.</p></div>
- <section className={styles.overview}>
-  <a className={styles.explore} href="/dashboard/search"><span className={styles.featureTop}><Icon name="search"/> PENCARIAN TOKO <span>↗</span></span><div><h2>Cari toko</h2><p>Cari toko kelontong dan sembako berdasarkan area.</p></div><span className={styles.featureButton}>Buka pencarian <span>→</span></span></a>
-  <div className={styles.metrics}><div className={styles.panelHeading}><h2>Statistik canvasing</h2><span>DATA CONTOH</span></div><div className={styles.metricGrid}>{metrics.map(([value,label],i)=><div key={label} className={styles.metric}><span className={styles.metricIndex}>0{i+1}</span><strong>{value}</strong><span>{label}</span></div>)}</div></div>
- </section>
- <section className={styles.lower}>
-  <div className={styles.activity}><div className={styles.panelHeading}><h2>Catatan aktivitas</h2><span>DATA CONTOH</span></div><div className={styles.tableHeader}><span>USAHA</span><span>HASIL</span><span>WAKTU</span></div>{activities.map(([name,status,time])=><div className={styles.activityRow} key={name}><strong>{name}</strong><span className={styles.status}>{status}</span><time>{time}</time></div>)}</div>
-  <div className={styles.followup}><h2>Kunjungan dan laporan</h2><p>Kelola daftar toko dan hasil kunjungan.</p><a href="/dashboard/canvasing"><Icon name="clipboard"/><span>Daftar kunjungan</span><span>↗</span></a><a href="/dashboard/reports"><Icon name="chart"/><span>Laporan aktivitas</span><span>↗</span></a></div>
- </section>
- </div>}
 
+const number = new Intl.NumberFormat("id-ID");
+const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" });
+
+export default function DashboardPage() {
+  const { lists, error } = useVisitLists();
+  const [refreshing, setRefreshing] = useState(false);
+  const summary = dashboardSummary(lists);
+  const metrics = [
+    { key: "saved", value: summary.total, label: "Toko tersimpan", icon: "store" as const },
+    { key: "potential", value: summary.potential, label: "Potensial tersimpan", icon: "search" as const },
+    { key: "visited", value: summary.visited, label: "Sudah dikunjungi", icon: "pin" as const },
+    { key: "agents", value: summary.agents, label: "Sudah menjadi agen", icon: "check" as const },
+  ];
+  return <div className={styles.dashboard}>
+    <header className={styles.heading}>
+      <h1>Ringkasan</h1>
+      <div className={styles.headingActions}>
+        <button className="btn btn-secondary" disabled={refreshing} onClick={async () => { setRefreshing(true); try { await refreshVisits(true); } finally { setRefreshing(false); } }}><Icon name="refresh" />{refreshing ? "Memuat data…" : "Perbarui data"}</button>
+        <Link className="btn btn-primary" href="/dashboard/search"><Icon name="search" />Cari toko</Link>
+      </div>
+    </header>
+    {error && <div className={styles.error} role="alert"><strong>Data ringkasan belum dapat dibaca</strong><p>{error}</p></div>}
+    <section className={styles.metrics} aria-label="Statistik canvasing">
+      {metrics.map(({ key, value, label, icon }) => <div key={key} className={styles.metric}>
+        <div className={styles.metricLabel}><span>{label}</span><Icon name={icon} /></div>
+        <div className={styles.metricValue}><strong data-summary-metric={key}>{error ? "–" : number.format(value)}</strong><span>toko</span></div>
+      </div>)}
+    </section>
+    <section className={styles.activity}>
+        <div className={styles.panelHeading}><h2>Kunjungan terbaru</h2><span className="badge badge-info">{number.format(summary.visited)} catatan</span></div>
+        {summary.recentVisits.length > 0 ? <>
+          <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th scope="col">Nama usaha</th><th scope="col">Area</th><th scope="col">Hasil kunjungan</th><th scope="col">Pembaruan</th></tr></thead>
+            <tbody>{summary.recentVisits.map(({ key, store, area, updatedAt }) => {
+              const status = followUpStatus(store);
+              return <tr key={key}>
+                <td data-label="Nama usaha"><strong>{store.name || "Toko belum diberi nama"}</strong><span>{displayCategory(store)}</span></td>
+                <td data-label="Area">{area}</td>
+                <td data-label="Hasil kunjungan"><span className={`badge ${status === "closing" ? "badge-success" : status === "pending" ? "badge-warning" : "badge-info"}`}>{store.prospectResult?.trim() || store.potential?.trim() || "Hasil belum diisi"}</span></td>
+                <td data-label="Pembaruan">{updatedAt ? <time dateTime={updatedAt}>{date.format(new Date(updatedAt))}</time> : <span>Waktu belum tercatat</span>}</td>
+              </tr>;
+            })}</tbody>
+          </table></div>
+          <div className={styles.activityFooter}><p>{summary.recentVisits.length} dari {number.format(summary.visited)} catatan kunjungan.</p><Link href="/dashboard/canvasing">Lihat semua kunjungan <span aria-hidden="true">→</span></Link></div>
+        </> : <div className={styles.empty}><Icon name="clipboard" /><h3>{error ? "Catatan belum dapat ditampilkan" : "Belum ada kunjungan"}</h3>{error && <p>Coba perbarui data.</p>}{!error && <Link className="btn btn-secondary" href="/dashboard/canvasing">Buka kunjungan</Link>}</div>}
+    </section>
+  </div>;
+}

@@ -4,7 +4,7 @@ Aplikasi canvasing untuk workspace agen dan merchant, menggunakan Next.js dan Le
 
 ## Menjalankan aplikasi
 
-Prasyarat: Node.js yang kompatibel dengan Next.js 16 (minimal 20.9), npm, dan Python 3.12 untuk klasifikasi agen.
+Prasyarat: Node.js 24, npm, dan Python 3.12 untuk klasifikasi agen. SQLite sudah tersedia di Node.js 24.
 
 ```sh
 cd webapp
@@ -32,7 +32,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Stop-Online.ps1
 
 Untuk memakai build yang sudah tersedia tanpa membangun ulang, tambahkan `-SkipBuild`. Setelah perubahan kode, jalankan kembali tanpa parameter tersebut. Tautan sementara dapat berubah saat tunnel dinyalakan ulang. Tautan tersimpan di `.online-runtime/public-url.txt`; log proses berada di folder yang sama. Folder ini serta `.local-tools` tidak masuk Git.
 
-Quick Tunnel digunakan untuk demo, tanpa jaminan ketersediaan. Login aplikasi masih akun demo, belum autentikasi server. Data kunjungan tetap tersimpan per browser dan alamat website, sehingga belum bisa dibagikan antarperangkat.
+Quick Tunnel digunakan untuk demo, tanpa jaminan ketersediaan. Login diverifikasi server menggunakan akun prototipe lama. Data kunjungan tersimpan pada database laptop, sehingga perubahan link tidak menghapus data dan perangkat lain dapat membuka data akun yang sama.
 
 Pencarian merchant serta pencarian dan klasifikasi agen berjalan sebagai tugas di background: server langsung mengirim ID pencarian, kemudian browser mengecek progres sampai selesai. Progres dan hasil disimpan sementara di memori server (hasil selesai tersedia selama 30 menit); restart server menghapus tugas tersebut. Setiap workspace memproses satu tugas pada satu waktu, dengan maksimal empat tugas yang belum selesai agar penggunaan browser scraper tidak berlebihan. Pada agen, kegagalan model tidak menghapus hasil pencarian; toko yang terdampak ditandai sebagai klasifikasi gagal.
 
@@ -53,13 +53,26 @@ Petunjuk klasifikasi lebih lanjut ada di [webapp/README.md](webapp/README.md).
 | Agen | agen | agen123 |
 | Merchant | merchant | merchant123 |
 
-Login saat ini untuk prototipe lokal, belum autentikasi produksi. Data kunjungan dan foto disimpan di localStorage browser sesuai akun; belum tersinkron antarperangkat dan tidak ikut dalam repository ini.
+Akun ini masih untuk prototipe. Password disimpan sebagai hash dan sesi memakai cookie HttpOnly. Semua perangkat yang masuk dengan akun yang sama mengakses data yang sama. Data kunjungan dan foto berada pada `webapp/data/canvasing.sqlite`, tidak ikut repository. Pada pembaruan pertama, login kembali di alamat lama untuk memindahkan data browser secara otomatis.
+
+## Database dan backup
+
+File SQLite dibuat otomatis saat aplikasi digunakan dan tetap tersimpan setelah laptop dimatikan.
+Folder `webapp/data` harus dipertahankan. Dari folder `webapp` jalankan:
+
+```sh
+npm run db:status
+npm run db:backup
+```
+
+Backup tersimpan di `webapp/data/backups` dan dapat dibuat ketika server masih menyala.
+Detail pemindahan data lama, konflik penyimpanan, dan path database ada di [webapp/README.md](webapp/README.md).
 
 ## Fitur saat ini
 
 - Agen: pencarian berdasarkan nama daerah atau area gambar di peta, klasifikasi toko, simpan daftar canvasing.
 - Merchant: gambar jalur, pencarian merchant di sepanjang jalur, daftar kunjungan terpisah.
-- Catatan kunjungan, lokasi, kontak, QRIS beberapa penyedia, EDC beberapa bank untuk merchant, dan foto yang bisa diperbesar.
+- Catatan kunjungan, lokasi, kontak, QRIS beberapa penyedia, EDC beberapa bank, Produk/LJK otomatis, dan foto yang bisa diperbesar.
 - Pencarian memerlukan koneksi internet dan bergantung pada hasil Google Maps; kelengkapan hasil tidak dijamin.
 
-Dataset foto, konfigurasi lokal, node_modules, dan hasil build tidak disertakan. Fitur laporan/export dan sinkronisasi masih dalam pengembangan.
+Dataset foto, konfigurasi lokal, database, backup, node_modules, dan hasil build tidak disertakan. Ringkasan, laporan visual, peta kunjungan, dan ekspor Excel mengambil data database akun yang sedang masuk.

@@ -8,6 +8,7 @@ import type { Visit, VisitList } from "@/lib/canvasing";
 import VisitEditor from "./VisitEditor";
 import DeleteVisitDialog from "./DeleteVisitDialog";
 import styles from "./page.module.css";
+import { Icon } from "@/components/Icon";
 
 const VisitedStoresMap = dynamic(() => import('./VisitedStoresMap'), {
   ssr: false, loading: () => <p role="status">Menyiapkan peta kunjungan…</p>,
@@ -23,8 +24,9 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
   const [exporting, setExporting] = useState(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
-  const [pendingDelete, setPendingDelete] = useState<{ listId: string; listName: string; visitId: string; storeName: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ listId: string; listName: string; visitId: string; storeName: string; updatedAt: string | null } | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const addStoreButton = useRef<HTMLButtonElement>(null);
   async function exportExcel(selected: VisitList[]) {
     setExporting(true); setActionError('');
@@ -38,22 +40,24 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
   function removeStore(item: Visit) {
     if (!active || exporting) return;
     setDeleteError('');
-    setPendingDelete({ listId: active.id, listName: active.name, visitId: item.visitId, storeName: item.name || 'Toko belum diberi nama' });
+    setPendingDelete({ listId: active.id, listName: active.name, visitId: item.visitId, storeName: item.name || 'Toko belum diberi nama', updatedAt: item.updatedAt || null });
   }
-  function confirmDelete() {
-    if (!pendingDelete || exporting) return;
+  async function confirmDelete() {
+    if (!pendingDelete || exporting || deleting) return;
     setActionError(''); setNotice('');
     setDeleteError('');
+    setDeleting(true);
     try {
-      deleteVisit(pendingDelete.listId, pendingDelete.visitId);
+      await deleteVisit(pendingDelete.listId, pendingDelete.visitId, pendingDelete.updatedAt);
       if (editing === pendingDelete.visitId) setEditing(null);
       setNotice(`${pendingDelete.storeName} dihapus dari daftar “${pendingDelete.listName}”.`);
       setPendingDelete(null);
     } catch (error) { setDeleteError(error instanceof Error ? error.message : 'Toko gagal dihapus. Coba lagi.'); }
+    finally { setDeleting(false); }
   }
   return <div className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>WORKSPACE / KUNJUNGAN</span><h1>{merchant ? "Kunjungan merchant" : "Daftar canvasing."}</h1><p>Siapkan daftar toko dan catat progres kunjungan Anda.</p></div><Link className="btn btn-primary" href={searchLink}>{merchant ? "Cari merchant" : "Cari toko"}</Link></header>
-    <p className={styles.storageNote}>Tersimpan di browser ini untuk akun yang sedang masuk. Belum tersinkron antarperangkat.</p>
+    <header className={styles.header}><div><span className={styles.eyebrow}>Canvasing {workspace}</span><h1>{merchant ? "Kunjungan merchant" : "Kunjungan"}</h1><p>Kelola daftar toko dan catat hasil kunjungan.</p></div><Link className="btn btn-primary" href={searchLink}><Icon name="search" />{merchant ? "Cari merchant" : "Cari toko"}</Link></header>
+    <p className={styles.storageNote}>Tersimpan di database laptop untuk akun yang sedang masuk. Bisa dibuka dari perangkat lain saat server menyala.</p>
     {actionError && <p role="alert" className={styles.exportError}>{actionError}</p>}
     {notice && <p role="status" className={styles.actionNotice}>{notice}</p>}
     {error && <p role="alert" className={styles.empty}>{error}</p>}
@@ -67,19 +71,20 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
       <aside className={styles.lists} aria-label="Daftar canvasing"><h2>Daftar tersimpan <span>{lists.length}</span></h2>
         {lists.map((list) => <button key={list.id} className={list.id === active.id ? styles.active : ""} aria-pressed={list.id === active.id} onClick={() => { setActiveId(list.id); setEditing(null); setActionError(''); setNotice(''); }}>
           <strong>{list.name}</strong><span>{list.area}</span><small>{list.stores.length} toko · {list.stores.filter((item) => item.status === "visited").length} dikunjungi</small>
+          <span className={styles.listProgress} aria-hidden="true"><i style={{ width: `${list.stores.length ? list.stores.filter(item => item.status === "visited").length / list.stores.length * 100 : 0}%` }} /></span>
         </button>)}
       </aside>
       <section className={styles.detail}>
         <div className={styles.listHeading}><span className={styles.eyebrow}>{active.source.mode === "road" ? "DARI RUAS JALAN" : active.source.mode === "map" ? "DARI AREA PETA" : "DARI NAMA DAERAH"}</span><h2>{active.name}</h2><p>{active.area} · {done}/{active.stores.length} toko dikunjungi</p><small>Disimpan {new Date(active.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</small></div>
         <div className={styles.listTools}>
-          <button ref={addStoreButton} className="btn btn-secondary" onClick={() => setEditing("new")}>Tambah toko lapangan</button>
+          <button ref={addStoreButton} className="btn btn-primary" onClick={() => setEditing("new")}><Icon name="plus" />Tambah toko lapangan</button>
           <button className="btn btn-secondary" disabled={exporting || !!error || !active.stores.length} onClick={() => exportExcel([active])}>{exporting ? 'Menyiapkan Excel...' : 'Ekspor daftar ini'}</button>
           {lists.length > 1 && <button className="btn btn-secondary" disabled={exporting || !!error} onClick={() => exportExcel(lists)}>Ekspor semua daftar</button>}
         </div>
         {!active.stores.length && <div className={styles.emptyList}><h3>Daftar ini belum memiliki toko</h3><p>Tambah toko lapangan atau pilih toko dari pencarian.</p><Link className="btn btn-secondary btn-sm" href={searchLink}>{merchant ? 'Cari merchant' : 'Cari toko'}</Link></div>}
         <div className={styles.stores}>{active.stores.map((item, index) => <article key={item.visitId} className={styles.store}>
           <span className={styles.number}>{String(index + 1).padStart(2, "0")}</span>
-          <div className={styles.storeInfo}><h3>{item.name || "Toko belum diberi nama"}</h3><p>{displayAddress(item.address)}</p><small>{displayCategory(item)}</small><div className={styles.badges}><span>{item.status === "visited" ? "Sudah dikunjungi" : "Belum dikunjungi"}</span>{!merchant && <span>{item.classification?.label === "potensial" ? "Potensial" : "Perlu tinjau"}</span>}</div>{item.pic && <p>PIC: {item.pic}{item.phone ? ` · ${item.phone}` : ""}</p>}{item.prospectResult && <p>Hasil: {item.prospectResult}</p>}{item.followUp && <p>Tindak lanjut: {item.followUp}</p>}{item.visitArea && <p>Area: {item.visitArea}</p>}{!!item.visitPhotos?.length && <p>{item.visitPhotos.length} foto kunjungan tersimpan</p>}{item.notes && <p className={styles.note}>{item.notes}</p>}</div>
+          <div className={styles.storeInfo}><h3>{item.name || "Toko belum diberi nama"}</h3><p>{displayAddress(item.address)}</p><small>{displayCategory(item)}</small><div className={styles.badges}><span data-visited={item.status === "visited"}>{item.status === "visited" ? "Sudah dikunjungi" : "Belum dikunjungi"}</span>{!merchant && <span data-potential={item.classification?.label === "potensial"}>{item.classification?.label === "potensial" ? "Potensial" : "Perlu tinjau"}</span>}</div>{item.pic && <p>PIC: {item.pic}{item.phone ? ` · ${item.phone}` : ""}</p>}{item.prospectResult && <p>Hasil: {item.prospectResult}</p>}{item.followUp && <p>Tindak lanjut: {item.followUp}</p>}{item.visitArea && <p>Area: {item.visitArea}</p>}{!!item.visitPhotos?.length && <p>{item.visitPhotos.length} foto kunjungan tersimpan</p>}{item.notes && <p className={styles.note}>{item.notes}</p>}</div>
           <div className={styles.actions}><button className="btn btn-secondary btn-sm" onClick={() => setEditing(editing === item.visitId ? null : item.visitId)}>Catat kunjungan</button>
             <button type="button" className={`btn btn-secondary btn-sm ${styles.deleteButton}`} aria-label={`Hapus toko ${item.name || 'Toko belum diberi nama'}`} disabled={exporting || !!error} onClick={() => removeStore(item)}>Hapus toko</button>
             {isGoogleMapsLink(item.url) && <a href={item.url} target="_blank" rel="noopener noreferrer">Google Maps ↗</a>}</div>
@@ -87,7 +92,7 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
       </section>
     </div>}
     {active && (store || editing === "new") && <VisitEditor workspace={workspace} key={editing} store={store || { id: "", visitId: "", name: "", address: "", category: "", lat: 0, lng: 0, rating: 0, reviewCount: 0, photoUrl: null, url: "", status: "planned", notes: "" }} listId={active.id} area={active.area} isNew={editing === "new"} onClose={() => setEditing(null)} />}
-    {pendingDelete && <DeleteVisitDialog storeName={pendingDelete.storeName} listName={pendingDelete.listName} error={deleteError}
+    {pendingDelete && <DeleteVisitDialog storeName={pendingDelete.storeName} listName={pendingDelete.listName} error={deleteError} busy={deleting}
       onCancel={() => setPendingDelete(null)} onConfirm={confirmDelete} fallbackFocus={addStoreButton} />}
   </div>;
 }

@@ -1,0 +1,4 @@
+.status, .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; margin: 0 0 24px; border-radius: 8px; font-size: 14px; line-height: 1.7; border: 1px solid #e4e4e7; }
+.status { color: #31624a; background: #edf5ef; } .error { color: #9d352e; background: #fcefed; }
+.status p, .error p { margin: 0; flex: 1; } .status button, .error button { flex-shrink: 0; }
+@media (max-width: 767px) { .status, .error { align-items: start; flex-direction: column; padding: 16px; } }

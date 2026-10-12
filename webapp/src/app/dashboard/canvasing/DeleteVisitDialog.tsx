@@ -3,8 +3,9 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import styles from './page.module.css';
 
-export default function DeleteVisitDialog({ storeName, listName, error, onCancel, onConfirm, fallbackFocus }: {
+export default function DeleteVisitDialog({ storeName, listName, error, busy = false, onCancel, onConfirm, fallbackFocus }: {
   storeName: string; listName: string; error: string;
+  busy?: boolean;
   onCancel: () => void; onConfirm: () => void; fallbackFocus: RefObject<HTMLButtonElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -26,12 +27,12 @@ export default function DeleteVisitDialog({ storeName, listName, error, onCancel
   };
 
   return <dialog ref={ref} className={styles.deleteDialog} role="alertdialog" aria-labelledby="delete-visit-title" aria-describedby="delete-visit-description"
-    onCancel={event => { event.preventDefault(); onCancel(); }}
+    onCancel={event => { event.preventDefault(); if (!busy) onCancel(); }}
     onPointerDown={event => { backdropPressed.current = outside(event); }}
     onClick={event => {
       const cancel = backdropPressed.current && outside(event);
       backdropPressed.current = false;
-      if (cancel) onCancel();
+      if (cancel && !busy) onCancel();
     }}>
     <div className={styles.deleteDialogBody}>
       <h2 id="delete-visit-title">Hapus toko?</h2>
@@ -40,8 +41,8 @@ export default function DeleteVisitDialog({ storeName, listName, error, onCancel
       {error && <p role="alert" className={styles.deleteDialogError}>{error}</p>}
     </div>
     <footer className={styles.deleteDialogActions}>
-      <button type="button" className="btn btn-secondary" onClick={onCancel} autoFocus>Batal</button>
-      <button type="button" className={`btn ${styles.confirmDelete}`} onClick={onConfirm}>Hapus toko</button>
+      <button type="button" className="btn btn-secondary" disabled={busy} onClick={onCancel} autoFocus>Batal</button>
+      <button type="button" className={`btn ${styles.confirmDelete}`} disabled={busy} onClick={onConfirm}>{busy ? "Menghapus…" : "Hapus toko"}</button>
     </footer>
   </dialog>;
 }

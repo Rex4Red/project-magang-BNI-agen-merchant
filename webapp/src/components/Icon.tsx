@@ -1,8 +1,15 @@
 import type { ReactNode, SVGProps } from "react";
 
-type IconName = "grid" | "search" | "clipboard" | "chart" | "settings" | "chevronLeft" | "chevronRight" | "menu" | "logout" | "external" | "close";
+type IconName = "grid" | "search" | "clipboard" | "chart" | "settings" | "chevronLeft" | "chevronRight" | "menu" | "logout" | "external" | "close" | "store" | "pin" | "database" | "refresh" | "check" | "map" | "plus";
 
 const paths: Record<IconName, ReactNode> = {
+  store: <><path d="M3 9l2-6h14l2 6M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v9h14v-9M9 21v-7h6v7" /></>,
+  pin: <><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
+  database: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" /></>,
+  refresh: <><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 14 6M18 18A8 8 0 0 1 4 12" /></>,
+  check: <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></>,
+  map: <><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3ZM9 3v15M15 6v15" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
   search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></>,
   clipboard: <><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5.5V3h6v2.5M9 10h6M9 14h6" /></>,
