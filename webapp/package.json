@@ -9,7 +9,9 @@
     "db:status": "node --env-file-if-exists=.env.local scripts/database-maintenance.mjs status",
     "db:backup": "node --env-file-if-exists=.env.local scripts/database-maintenance.mjs backup",
     "lint": "eslint",
-    "test:agent-import": "node --test scripts/test-agent-excel-import.mjs"
+    "test:agent-import": "node --test scripts/test-agent-excel-import.mjs",
+    "test:list-access": "node --test scripts/test-list-access.mjs",
+    "test:list-access-http": "node scripts/test-list-access-http.mjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -229,3 +229,22 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+## Admin dan password daftar kunjungan
+
+- Login admin menggunakan akun yang sudah ada: `admin` / `admin123`. Role admin dapat memilih data **Agen**, **Merchant**, serta data lama **Canvaser** dan **Admin** melalui menu **Pantau data akun** di sidebar. Perubahan dan pencatatan oleh admin tersimpan ke akun yang sedang dipantau. Agen dan merchant tetap memakai akun bersama masing-masing.
+- Pada **Simpan daftar** dari hasil pencarian agen maupun merchant, isi password daftar dan konfirmasinya bila ingin melindungi daftar baru. Password opsional, minimal 6 dan maksimal 200 karakter. Daftar lama tetap dapat digunakan. Menambahkan toko ke daftar yang terkunci memerlukan pembukaan daftar terlebih dahulu.
+- Klik kartu daftar dengan ikon gembok untuk membuka dialog password. Dari halaman lain, gunakan tombol **Akses daftar** di bar atas dan pilih **Buka**. Isi daftar terkunci tidak dikirim ke browser, sehingga tidak muncul di peta, ringkasan, laporan, dan ekspor. Nama daftar dan area tetap terlihat untuk memilih daftar. Akses berlaku 15 menit per sesi perangkat dan bisa ditutup melalui **Kunci daftar** atau **Akses daftar → Kunci** atau keluar akun. Admin dapat membuka seluruh data tanpa password daftar.
+- Password daftar disimpan sebagai hash scrypt dengan salt acak, bukan teks asli. Server membatasi percobaan password dan memeriksa izin saat membaca serta mengubah data. Impor memerlukan seluruh daftar dibuka terlebih dahulu agar tidak memperbarui daftar terkunci lewat pencocokan daerah.
+- Input nomor telepon di **Catat kunjungan** telah dihapus. Seluruh ekspor kunjungan dan laporan tidak menyertakan kolom maupun nilai nomor telepon. Data telepon lama tidak dihapus dari database; impor mendukung format lama dan format baru tanpa kolom telepon.
+- Skema database diperbarui otomatis saat server dibuka. Folder `data` harus tetap dipertahankan saat memperbarui aplikasi.
+
+Pengujian memakai database sementara, terpisah dari data pengguna:
+
+```sh
+npm run test:list-access
+npm run test:agent-import
+npm run build -- --webpack
+npm run test:list-access-http
+```

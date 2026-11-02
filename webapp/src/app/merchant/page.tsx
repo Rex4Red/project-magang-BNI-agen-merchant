@@ -1,5 +1,6 @@
 "use client";
 
+import ListPasswordFields from "@/components/ListPasswordFields";
 import { useEffect, useRef, useState, useLayoutEffect, useCallback } from "react";
 import Link from "next/link";
 import type * as Leaflet from "leaflet";
@@ -69,6 +70,8 @@ export default function MerchantPage() {
 
   // Local UI states
   const [mapReady, setMapReady] = useState(false);
+  const [listPassword, setListPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [saveOpen, setSaveOpen] = useState(false);
   const [listName, setListName] = useState("");
   const [visitArea, setVisitArea] = useState("");
@@ -665,7 +668,7 @@ export default function MerchantPage() {
             Tujuan penyimpanan
             <select value={targetList} onChange={(e) => setTargetList(e.target.value)}>
               <option value="">Buat daftar baru</option>
-              {visitLists.map((list) => (
+              {visitLists.filter(list => !list.locked).map((list) => (
                 <option value={list.id} key={list.id}>
                   {list.name} · {list.area}
                 </option>
@@ -696,7 +699,8 @@ export default function MerchantPage() {
             </>
           )}
 
-          {targetList && <p>Merchant ditambahkan ke daftar terpilih. Merchant yang sudah ada akan dilewati.</p>}
+          {!targetList && <ListPasswordFields password={listPassword} confirmation={passwordConfirmation} onPassword={setListPassword} onConfirmation={setPasswordConfirmation} />}
+        {targetList && <p>Merchant ditambahkan ke daftar terpilih. Merchant yang sudah ada akan dilewati.</p>}
           {(saveError || storageError) && <p role="alert">{saveError || storageError}</p>}
 
           <div className={styles.saveActions}>
@@ -716,7 +720,8 @@ export default function MerchantPage() {
                 setSaving(true);
                 setSaveError("");
                 try {
-                  const saved = await saveVisitList({
+                  if (!targetList && (listPassword !== passwordConfirmation || (listPassword && (listPassword.length < 6 || listPassword.length > 200)))) throw new Error("Password daftar minimal 6 karakter dan pengulangan harus sama.");
+                  const saved = await saveVisitList({ password: targetList ? undefined : listPassword,
                     listId: targetList || undefined,
                     name: listName,
                     area: visitArea,
@@ -736,7 +741,7 @@ export default function MerchantPage() {
                     }`
                   );
                   setSaveOpen(false);
-                  setChosen([]);
+                  setChosen([]); setListPassword(""); setPasswordConfirmation("");
                 } catch (err) {
                   setSaveError(err instanceof Error ? err.message : "Gagal menyimpan daftar.");
                 } finally {

@@ -2,10 +2,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession, homeFor, signOut } from "@/lib/session";
+import { useSession, homeFor, signOut, switchAdminAccount } from "@/lib/session";
 import { Icon } from "./Icon";
 import DatabaseStatus from "./DatabaseStatus";
 import VisitDataWorkspace from "./VisitDataWorkspace";
+import ProtectedLists, { ListAccessProvider } from "./ProtectedLists";
 import styles from "@/app/dashboard/layout.module.css";
 
 const agentItems = [
@@ -61,13 +62,22 @@ export default function WorkspaceShell({ children, workspace }: { children: Reac
     };
   }, [menu]);
   if (!ready || !user || user.workspace !== workspace) return <div className={styles.loading}>Menyiapkan ruang kerja…</div>;
-  return <div className={styles.shell}>
+  return <ListAccessProvider key={`${user.username}:${user.dataAccount || user.username}`}><div className={styles.shell}>
     {menu && <button className={styles.backdrop} aria-label="Tutup menu" onClick={() => setMenu(false)} />}
     <aside ref={sidebar} id="workspace-navigation" className={`${styles.sidebar} ${menu ? styles.open : ""}`}>
       <a href={homeFor(workspace)} className={styles.brand} onClick={event => { event.preventDefault(); router.push(homeFor(workspace)); setMenu(false); }}>
         <Image src="/bni-logo.svg" alt="BNI" width={200} height={58} priority />
         <div className={styles.brandTitle}><strong>{workspace === "agen" ? "agen" : "merchant"}</strong></div>
       </a>
+      {user.role === "admin" && <label style={{ padding: "16px", display: "grid", gap: "8px" }}>Pantau data akun
+        <select aria-label="Akun yang dipantau admin" value={user.dataAccount || "agen"} disabled={loggingOut} onChange={async event => {
+          setLoggingOut(true); setLogoutError("");
+          try { const selected = await switchAdminAccount(event.target.value); router.push(homeFor(selected.workspace)); }
+          catch (error) { setLogoutError(error instanceof Error ? error.message : "Gagal mengganti akun."); }
+          finally { setLoggingOut(false); }
+        }}><option value="agen">Agen</option><option value="merchant">Merchant</option><option value="canvaser">Canvaser (data lama)</option><option value="admin">Admin (data lama)</option></select>
+        <small>Admin dapat membuka seluruh daftar tanpa password daftar.</small>
+      </label>}
       <nav aria-label={`Menu ${workspace}`} className={styles.nav}>
         {items.map(item => <a key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className={pathname === item.href ? styles.active : ""}
           onClick={event => { event.preventDefault(); router.push(item.href); setMenu(false); }}><Icon name={item.icon} />{item.label}</a>)}
@@ -86,10 +96,10 @@ export default function WorkspaceShell({ children, workspace }: { children: Reac
       <header className={styles.header}>
         <button ref={menuButton} className={styles.menuButton} aria-label="Buka menu" aria-controls="workspace-navigation" aria-expanded={menu} onClick={() => setMenu(true)}><Icon name="menu" /></button>
         <div className={styles.breadcrumb}><span>Operasional</span><span>/</span><strong>{currentPage}</strong></div>
-        <div className={styles.headerRight}><DatabaseStatus /><span className={styles.headerAvatar} title={user.name}>{user.name.charAt(0)}</span></div>
+        <div className={styles.headerRight}><ProtectedLists /><DatabaseStatus /><span className={styles.headerAvatar} title={user.name}>{user.name.charAt(0)}</span></div>
       </header>
-      <main className={styles.content}>{logoutError && <p className={styles.logoutError} role="alert">{logoutError}</p>}<VisitDataWorkspace>{children}</VisitDataWorkspace></main>
+      <main className={styles.content}>{logoutError && <p className={styles.logoutError} role="alert">{logoutError}</p>}<VisitDataWorkspace key={`${user.username}:${user.dataAccount || user.username}`}>{children}</VisitDataWorkspace></main>
       <footer className={styles.footer}><span>BNI · Canvasing {workspace}</span></footer>
     </div>
-  </div>;
+  </div></ListAccessProvider>;
 }

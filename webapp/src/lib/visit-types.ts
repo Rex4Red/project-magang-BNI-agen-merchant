@@ -47,6 +47,8 @@ export interface Visit extends Prospect {
 }
 
 export interface VisitList {
+  protected?: boolean;
+  locked?: boolean;
   id: string;
   name: string;
   area: string;

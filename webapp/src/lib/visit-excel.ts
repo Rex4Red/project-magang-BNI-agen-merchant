@@ -36,12 +36,13 @@ export async function createVisitWorkbook(lists: VisitList[]) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'BNI Canvasing';
   const usedNames = new Set<string>();
-  const widths = [6, 28, 24, 35, 22, 18, 28, 20, 28, 22, 36, 45, 28, 25, 40, 16, 16, 25, 18];
+  const widths = [6, 28, 24, 35, 22, 28, 20, 28, 22, 36, 45, 28, 25, 40, 16, 16, 25, 18];
+  if (lists.some(list => list.locked)) throw new Error("Buka daftar terkunci sebelum mengekspor.");
   for (const list of lists) {
     const sheet = workbook.addWorksheet(sheetName(list.area || list.name, usedNames));
-    sheet.columns = VISIT_EXCEL_HEADERS.map((header, index) => ({ header, width: widths[index] }));
+    sheet.columns = VISIT_EXCEL_HEADERS.filter(header => header !== 'No telp').map((header, index) => ({ header, width: widths[index] }));
     sheet.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }];
-    sheet.autoFilter = { from: 'A1', to: `S${Math.max(1, list.stores.length + 1)}` };
+    sheet.autoFilter = { from: 'A1', to: `R${Math.max(1, list.stores.length + 1)}` };
     const header = sheet.getRow(1);
     header.height = 30;
     header.eachCell(cell => {
@@ -53,7 +54,7 @@ export async function createVisitWorkbook(lists: VisitList[]) {
       const coordinates = Number.isFinite(store.lat) && Number.isFinite(store.lng)
         && Math.abs(store.lat) <= 90 && Math.abs(store.lng) <= 180 && (store.lat !== 0 || store.lng !== 0);
       const row = sheet.addRow([
-        index + 1, store.name || '', store.category ? displayCategory(store) : '', displayAddress(store.address), store.pic || '', store.phone || '', store.url || '',
+        index + 1, store.name || '', store.category ? displayCategory(store) : '', displayAddress(store.address), store.pic || '', store.url || '',
         visitProduct(store), visitInstitutions(store), store.potential || '', store.followUpNotes || '', store.notes || '', store.followUp || '',
         null, store.prospectResult || '', coordinates ? store.lat : null, coordinates ? store.lng : null,
         store.visitArea ?? list.area, store.businessId || '',
@@ -64,14 +65,14 @@ export async function createVisitWorkbook(lists: VisitList[]) {
         cell.alignment = { vertical: 'top', wrapText: true };
         cell.border = { bottom: { style: 'hair', color: { argb: 'FFE3DED5' } } };
       });
-      for (const col of [6, 19]) row.getCell(col).numFmt = '@';
-      for (const col of [16, 17]) row.getCell(col).numFmt = '0.000000';
+      for (const col of [18]) row.getCell(col).numFmt = '@';
+      for (const col of [15, 16]) row.getCell(col).numFmt = '0.000000';
       if (isGoogleMapsLink(store.url)) {
-        row.getCell(7).value = { text: store.url, hyperlink: store.url };
-        row.getCell(7).font = { name: 'Calibri', size: 11, color: { argb: 'FF0563C1' }, underline: true };
-        row.getCell(7).alignment = { vertical: 'top', wrapText: false };
+        row.getCell(6).value = { text: store.url, hyperlink: store.url };
+        row.getCell(6).font = { name: 'Calibri', size: 11, color: { argb: 'FF0563C1' }, underline: true };
+        row.getCell(6).alignment = { vertical: 'top', wrapText: false };
       }
-      for (const [col, values] of [[8, PRODUCT_OPTIONS], [10, POTENTIAL_OPTIONS], [13, POTENTIAL_OPTIONS]] as const) {
+      for (const [col, values] of [[7, PRODUCT_OPTIONS], [9, POTENTIAL_OPTIONS], [12, POTENTIAL_OPTIONS]] as const) {
         row.getCell(col).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${values.join(',')}"`], showErrorMessage: false };
       }
       const photos = await Promise.all((store.visitPhotos || []).map(photoForExcel));
@@ -82,7 +83,7 @@ export async function createVisitWorkbook(lists: VisitList[]) {
           const image = workbook.addImage({ base64: photo.base64, extension: photo.extension });
           // Native offsets use EMUs (9,525 per pixel); fractional row offsets can overlap photos.
           const anchor = (x: number, y: number) => ({
-            nativeCol: 13, nativeColOff: Math.round(x * 9525),
+            nativeCol: 12, nativeColOff: Math.round(x * 9525),
             nativeRow: row.number - 1, nativeRowOff: Math.round(y * 9525),
           }) as ExcelJS.Anchor;
           const top = 4 + photoIndex * 132;

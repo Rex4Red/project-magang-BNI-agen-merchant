@@ -1,5 +1,6 @@
 "use client";
 
+import ListPasswordFields from "@/components/ListPasswordFields";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import styles from "./page.module.css";
 import { Icon } from "@/components/Icon";
@@ -67,6 +68,8 @@ export default function SearchPage() {
   const [query, setQuery] = useAgentSearchField('query');
   const { lists: visitLists, error: storageError } = useVisitLists();
   const [chosen, setChosen] = useAgentSearchField('chosen');
+  const [listPassword, setListPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [saveOpen, setSaveOpen] = useState(false);
   const [listName, setListName] = useState("");
   const [visitArea, setVisitArea] = useState("");
@@ -422,20 +425,22 @@ export default function SearchPage() {
         <div><h2>Simpan ke daftar canvasing</h2><p>{chosen.length} toko dipilih. Daftar disimpan ke database laptop untuk akun yang masuk.</p></div>
         <label>Tujuan penyimpanan<select value={targetList} onChange={(event) => setTargetList(event.target.value)}>
           <option value="">Buat daftar baru</option>
-          {visitLists.map((list) => <option value={list.id} key={list.id}>{list.name} · {list.area}</option>)}
+          {visitLists.filter(list => !list.locked).map((list) => <option value={list.id} key={list.id}>{list.name} · {list.area}</option>)}
         </select></label>
         {!targetList && <><label>Nama daftar<input maxLength={100} value={listName} onChange={(event) => setListName(event.target.value)} placeholder="Contoh: Kunjungan Seturan Senin" /></label>
           <label>Area kunjungan<input maxLength={100} value={visitArea} onChange={(event) => setVisitArea(event.target.value)} placeholder="Contoh: Seturan" /></label></>}
+        {!targetList && <ListPasswordFields password={listPassword} confirmation={passwordConfirmation} onPassword={setListPassword} onConfirmation={setPasswordConfirmation} />}
         {targetList && <p>Toko ditambahkan ke daftar terpilih. Toko yang sudah ada akan dilewati.</p>}
         {(saveError || storageError) && <p role="alert">{saveError || storageError}</p>}
         <div className={styles.saveActions}><button className="btn btn-secondary" disabled={saving} onClick={() => setSaveOpen(false)}>Batal</button>
           <button className="btn btn-primary" disabled={saving || !chosen.length || !!storageError || (!targetList && (!listName.trim() || !visitArea.trim()))} onClick={async () => {
             if (saving) return; setSaving(true); setSaveError("");
             try {
-              const saved = await saveVisitList({ listId: targetList || undefined, name: listName, area: visitArea,
+              if (!targetList && (listPassword !== passwordConfirmation || (listPassword && (listPassword.length < 6 || listPassword.length > 200)))) throw new Error("Password daftar minimal 6 karakter dan pengulangan harus sama.");
+                  const saved = await saveVisitList({ password: targetList ? undefined : listPassword, listId: targetList || undefined, name: listName, area: visitArea,
                 source: { mode: searchContext.mode, bounds: searchContext.bounds, polygon: searchContext.polygon }, stores: results.filter((store) => chosen.includes(store.id)) });
               setSaveNotice(`${saved.added} toko disimpan ke “${saved.name}”.${saved.skipped ? ` ${saved.skipped} toko sudah ada dan dilewati.` : ""}`);
-              setSaveOpen(false); setChosen([]);
+              setSaveOpen(false); setChosen([]); setListPassword(""); setPasswordConfirmation("");
             } catch (err) { setSaveError(err instanceof Error ? err.message : "Gagal menyimpan daftar."); }
             finally { setSaving(false); }
           }}>{saving ? "Menyimpan…" : "Simpan daftar"}</button></div>

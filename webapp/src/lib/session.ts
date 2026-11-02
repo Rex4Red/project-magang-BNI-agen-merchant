@@ -2,7 +2,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 export type Workspace = "agen" | "merchant";
-export interface Session { username: string; name: string; role: string; workspace: Workspace }
+export interface Session { username: string; name: string; role: string; workspace: Workspace; dataAccount?: string }
 export function readSession(raw: string | null | undefined): Session | null {
   try {
     const data = JSON.parse(raw || "null");
@@ -52,6 +52,14 @@ export async function signIn(username: string, password: string) {
   if (!response.ok) throw new Error(data.error || "Login gagal. Coba lagi.");
   generation++; publish(data.user);
   try { localStorage.setItem("user", JSON.stringify(data.user)); } catch { /* Server session remains usable when browser storage is blocked. */ }
+  window.dispatchEvent(new Event("canvas-session"));
+  return data.user as Session;
+}
+export async function switchAdminAccount(account: string) {
+  const response = await fetch("/api/v1/session", { method: "PATCH", headers: { "Content-Type": "application/json", "x-canvas-client": "1" }, body: JSON.stringify({ account }) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gagal mengganti ruang kerja.");
+  generation++; publish(data.user);
   window.dispatchEvent(new Event("canvas-session"));
   return data.user as Session;
 }

@@ -48,7 +48,7 @@ export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPrev
     if (!sheet.actualRowCount) continue;
     const columns = new Map<string, number>();
     sheet.getRow(1).eachCell((cell, col) => columns.set(normalized(cell.text), col));
-    const missing = VISIT_EXCEL_HEADERS.filter(header => !columns.has(normalized(header)));
+    const missing = VISIT_EXCEL_HEADERS.filter(header => header !== 'No telp' && !columns.has(normalized(header)));
     if (missing.length) throw new Error(`Sheet “${sheet.name}”: kolom ${missing.join(', ')} belum tersedia. Gunakan format Ekspor data laporan.`);
     if (sheet.rowCount > 10001) throw new Error(`Sheet “${sheet.name}” melebihi 10.000 baris.`);
     const photos = new Map<number, string[]>();
@@ -73,7 +73,7 @@ export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPrev
     const byArea = new Map<string, ExcelVisitGroup>();
     for (let number = 2; number <= sheet.rowCount; number++) {
       const row = sheet.getRow(number);
-      const value = (header: typeof VISIT_EXCEL_HEADERS[number]) => row.getCell(columns.get(normalized(header))!).text.trim();
+      const value = (header: typeof VISIT_EXCEL_HEADERS[number]) => columns.has(normalized(header)) ? row.getCell(columns.get(normalized(header))!).text.trim() : '';
       if (VISIT_EXCEL_HEADERS.filter(header => header !== 'No').every(header => !value(header)) && !photos.has(number)) continue;
       const fail = (message: string): never => { throw new Error(`Sheet “${sheet.name}”, baris ${number}: ${message}`); };
       const name = value('Nama Usaha'), area = value('Area Kunjungan');

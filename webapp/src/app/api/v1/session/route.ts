@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticatedUser, database, login, logout } from "@/lib/server/database";
+import { authenticatedUser, database, login, logout, selectAdminAccount } from "@/lib/server/database";
 import { SESSION_COOKIE, NO_STORE, apiError, bodyJson, checkWriteRequest } from "@/lib/server/request";
 
 export const runtime = "nodejs";
@@ -18,10 +18,17 @@ export async function POST(request: NextRequest) {
     const password = typeof body.password === "string" ? body.password : "";
     if (username.length > 100 || password.length > 200) return Response.json({ error: "Username atau password salah" }, { status: 401, headers: NO_STORE });
     const account = login(username, password, request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "local");
-    const response = NextResponse.json({ user: account.user }, { headers: NO_STORE });
+    const response = NextResponse.json({ user: authenticatedUser(account.token) }, { headers: NO_STORE });
     const secure = request.headers.get("x-forwarded-proto") === "https" || request.nextUrl.protocol === "https:";
     response.cookies.set(SESSION_COOKIE, account.token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 30 * 86400 });
     return response;
+  } catch (error) { return apiError(error); }
+}
+export async function PATCH(request: NextRequest) {
+  try {
+    checkWriteRequest(request);
+    const body = await bodyJson(request, 4096);
+    return Response.json({ user: selectAdminAccount(request.cookies.get(SESSION_COOKIE)?.value, body.account) }, { headers: NO_STORE });
   } catch (error) { return apiError(error); }
 }
 export async function DELETE(request: NextRequest) {

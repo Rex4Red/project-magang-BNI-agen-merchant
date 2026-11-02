@@ -39,7 +39,7 @@ async function post(user: Session, body: Record<string, unknown>, commandId = cr
   return responseData(response);
 }
 async function migrate(user: Session, cache: Cache) {
-  if (cache.migratedDatabaseId === cache.databaseId) return;
+  if (user.role === "admin" || cache.migratedDatabaseId === cache.databaseId) return;
   const key = user.workspace === "merchant" ? `bni-canvas:merchant-visits:v1:${user.username}` : `bni-canvas:visits:v1:${user.username}`;
   let raw: string | null = null;
   try { raw = localStorage.getItem(key); } catch { /* The database works even if legacy browser storage is unavailable. */ }
@@ -100,7 +100,8 @@ let timer: ReturnType<typeof setInterval>;
 function focusRefresh() { if (!document.hidden) void refreshVisits(); }
 function changedAccount() { caches.clear(); activeUser = null; listeners.forEach(listener => listener()); }
 export function useVisitLists() {
-  const { user } = useSession();
+  const { user: sessionUser } = useSession();
+  const user = sessionUser ? { ...sessionUser, username: sessionUser.dataAccount || sessionUser.username } : null;
   const state = useSyncExternalStore(subscribe, () => user ? cacheFor(user).state : initial, () => initial);
   useEffect(() => {
     activeUser = user;
@@ -133,9 +134,15 @@ function expectedTime(listId: string, visitId: string) {
   if (!store) throw new Error("Toko tersimpan tidak ditemukan. Muat ulang daftar.");
   return store.updatedAt || null;
 }
-export async function saveVisitList(input: { listId?: string; name: string; area: string; source: VisitList["source"]; stores: Prospect[] }) {
+export async function saveVisitList(input: { listId?: string; name: string; area: string; source: VisitList["source"]; stores: Prospect[]; password?: string }) {
   const result = await command({ action: "save-list", input });
   return result as { id: string; name: string; added: number; skipped: number };
+}
+export async function unlockVisitList(listId: string, password: string) {
+  await command({ action: "unlock-list", listId, password });
+}
+export async function lockVisitList(listId: string) {
+  await command({ action: "lock-list", listId });
 }
 export async function updateVisit(listId: string, visitId: string, patch: Partial<Omit<Visit, "id" | "visitId">>, expectedUpdatedAt = expectedTime(listId, visitId)) {
   await command({ action: "update-visit", listId, visitId, patch, expectedUpdatedAt });

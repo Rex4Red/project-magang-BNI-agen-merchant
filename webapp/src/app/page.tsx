@@ -27,7 +27,7 @@ export default function LoginPage() {
       <div className={styles.brand}><Image src="/bni-logo.svg" alt="BNI" width={200} height={58} priority /></div>
       <div className={styles.card}>
         <h1 id="login-title">Masuk</h1>
-        <p className={styles.subtitle}>Masuk dengan akun agen atau merchant Anda.</p>
+        <p className={styles.subtitle}>Masuk dengan akun admin, agen, atau merchant Anda.</p>
         <form onSubmit={submit}>
           <label htmlFor="username">Username</label>
           <input id="username" autoComplete="username" placeholder="Masukkan username" required value={username} onChange={event => setUsername(event.target.value)} />
@@ -36,7 +36,7 @@ export default function LoginPage() {
           {error && <p className={styles.error} role="alert">{error}</p>}
           <button type="submit" disabled={busy}>{busy ? "Memeriksa akun…" : "Masuk"}</button>
         </form>
-        <details className={styles.demo}><summary>Akun demo</summary><p>Agen: agen / agen123<br />Merchant: merchant / merchant123<br /><small>Akun agen lama: canvaser / canvaser123 dan admin / admin123 tetap dapat digunakan.</small></p></details>
+        <details className={styles.demo}><summary>Akun demo</summary><p>Agen: agen / agen123<br />Merchant: merchant / merchant123<br /><small>Admin: admin / admin123. Akun agen lama: canvaser / canvaser123 tetap dapat digunakan.</small></p></details>
       </div>
       <p className={styles.footer}>BNI · Ruang kerja canvasing</p>
     </section>

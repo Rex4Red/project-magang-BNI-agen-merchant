@@ -191,7 +191,22 @@ export function database(): DatabaseSync {
     CREATE TABLE IF NOT EXISTS login_attempts (
       client_key TEXT PRIMARY KEY, failures INTEGER NOT NULL, reset_at INTEGER NOT NULL
     );
-    PRAGMA user_version = 1;
+    CREATE TABLE IF NOT EXISTS admin_workspaces (
+      token_hash TEXT PRIMARY KEY REFERENCES sessions(token_hash) ON DELETE CASCADE,
+      account TEXT NOT NULL REFERENCES accounts(username)
+    );
+    CREATE TABLE IF NOT EXISTS list_passwords (
+      username TEXT NOT NULL, list_id TEXT NOT NULL, salt TEXT NOT NULL, password_hash TEXT NOT NULL,
+      PRIMARY KEY(username,list_id),
+      FOREIGN KEY(username,list_id) REFERENCES visit_lists(username,id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS list_grants (
+      token_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+      username TEXT NOT NULL, list_id TEXT NOT NULL, expires_at INTEGER NOT NULL,
+      PRIMARY KEY(token_hash,username,list_id),
+      FOREIGN KEY(username,list_id) REFERENCES visit_lists(username,id) ON DELETE CASCADE
+    );
+    PRAGMA user_version = 2;
   `);
 
   db.prepare("INSERT OR IGNORE INTO meta(key,value) VALUES('database_id',?)").run(randomUUID());
@@ -242,7 +257,7 @@ function sessionUser(row: Record<string, unknown>): Session {
   return {
     username: String(row.username),
     name: String(row.name),
-    role: String(row.workspace),
+    role: row.username === "admin" ? "admin" : String(row.workspace),
     workspace: row.workspace === "merchant" ? "merchant" : "agen",
   };
 }
@@ -282,9 +297,31 @@ export function authenticatedUser(token?: string): Session | null {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const row = database().prepare(`SELECT a.* FROM sessions s JOIN accounts a ON a.username=s.username
     WHERE s.token_hash=? AND s.expires_at>?`).get(digest(token), Date.now());
-  return row ? sessionUser(row) : null;
+  if (!row) return null;
+  const user = sessionUser(row);
+  if (user.role === "admin") {
+    const selected = database().prepare("SELECT a.* FROM admin_workspaces w JOIN accounts a ON a.username=w.account WHERE w.token_hash=?").get(digest(token));
+    user.dataAccount = selected ? String(selected.username) : "agen";
+    user.workspace = selected?.workspace === "merchant" ? "merchant" : "agen";
+  }
+  return user;
+}
+
+export function selectAdminAccount(token: string | undefined, account: unknown) {
+  const user = authenticatedUser(token);
+  if (user?.role !== "admin" || !token) throw new DataError("Hanya admin yang dapat berpindah akun.", 403);
+  if (typeof account !== "string" || !database().prepare("SELECT username FROM accounts WHERE username=?").get(account))
+    throw new DataError("Akun tidak ditemukan.", 404);
+  database().prepare("INSERT OR REPLACE INTO admin_workspaces VALUES(?,?)").run(digest(token), account);
+  return authenticatedUser(token);
 }
 
 export function logout(token?: string) {
-  if (token) database().prepare("DELETE FROM sessions WHERE token_hash=?").run(digest(token));
+  if (!token) return;
+  transaction(db => {
+    const hash = digest(token);
+    db.prepare("DELETE FROM list_grants WHERE token_hash=?").run(hash);
+    db.prepare("DELETE FROM admin_workspaces WHERE token_hash=?").run(hash);
+    db.prepare("DELETE FROM sessions WHERE token_hash=?").run(hash);
+  });
 }

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, randomBytes, scryptSync } from "node:crypto";
 import type { Prospect, Visit, VisitList } from "../visit-types";
 import { database, DataError, transaction, type DatabaseSync } from "./database";
 
@@ -226,6 +226,13 @@ function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now
   }
   return agent ? { added, skipped, createdLists, updatedLists: updatedLists.size, listIds: [...listIds] } : { added, skipped };
 }
+export function protectList(account: string, listId: string, password: unknown) {
+  if (password === undefined || password === "") return;
+  if (typeof password !== "string" || password.length < 6 || password.length > 200)
+    throw new DataError("Password daftar harus 6–200 karakter.");
+  const salt = randomBytes(16).toString("hex"), hash = scryptSync(password, salt, 64).toString("hex");
+  database().prepare("INSERT INTO list_passwords VALUES(?,?,?,?)").run(account, listId, salt, hash);
+}
 export function visitCommand(username: string, body: Record<string, unknown>) {
   const commandId = id(body.commandId);
   return transaction(db => {
@@ -244,6 +251,7 @@ export function visitCommand(username: string, body: Record<string, unknown>) {
       else {
         if (!name || !area) throw new DataError("Isi nama daftar dan area kunjungan.");
         db.prepare("INSERT INTO visit_lists VALUES(?,?,?,?,?,?,?)").run(username, listId, name, area, JSON.stringify(source(input.source)), now, now);
+        protectList(username, listId, input.password);
       }
       const seen = new Set(db.prepare("SELECT data_json FROM visits WHERE username=? AND list_id=?").all(username, listId).map(row => identity(JSON.parse(String(row.data_json)))));
       let added = 0;

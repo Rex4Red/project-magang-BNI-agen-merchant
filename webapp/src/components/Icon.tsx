@@ -1,8 +1,10 @@
 import type { ReactNode, SVGProps } from "react";
 
-type IconName = "grid" | "search" | "clipboard" | "chart" | "settings" | "chevronLeft" | "chevronRight" | "menu" | "logout" | "external" | "close" | "store" | "pin" | "database" | "refresh" | "check" | "map" | "plus";
+type IconName = "grid" | "search" | "clipboard" | "chart" | "settings" | "chevronLeft" | "chevronRight" | "menu" | "logout" | "external" | "close" | "store" | "pin" | "database" | "refresh" | "check" | "map" | "plus" | "lock" | "unlock";
 
 const paths: Record<IconName, ReactNode> = {
+  lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" /></>,
+  unlock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 7.5-2M12 14v3" /></>,
   store: <><path d="M3 9l2-6h14l2 6M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v9h14v-9M9 21v-7h6v7" /></>,
   pin: <><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
   database: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" /></>,
