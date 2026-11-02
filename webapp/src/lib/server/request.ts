@@ -5,7 +5,7 @@ export const NO_STORE = { "Cache-Control": "private, no-store" };
 export function checkWriteRequest(request: Request) {
   const origin = request.headers.get("origin");
   if (request.headers.get("x-canvas-client") !== "1"
-    || (origin && new URL(origin).host !== request.headers.get("host")))
+    || (origin && new URL(origin).origin !== (process.env.BNI_APP_ORIGIN || new URL(request.url).origin)))
     throw new DataError("Permintaan tidak berasal dari aplikasi ini.", 403);
 }
 export async function bodyJson(request: Request, limit = 24 * 1024 * 1024): Promise<Record<string, unknown>> {

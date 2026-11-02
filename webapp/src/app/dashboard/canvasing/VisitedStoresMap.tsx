@@ -44,7 +44,7 @@ function MapCanvas({ entries, selectedKey, onSelect, reportMode }: {
       const instance = L.map(container.current, { scrollWheelZoom: false }).setView([-7.773, 110.408], 13);
       map.current = instance;
       tiles.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        referrerPolicy: "strict-origin-when-cross-origin", maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).on('tileerror', () => { if (!disposed) setTileError(true); }).addTo(instance);
       group.current = L.layerGroup().addTo(instance);
       observer = new ResizeObserver(() => instance.invalidateSize());
