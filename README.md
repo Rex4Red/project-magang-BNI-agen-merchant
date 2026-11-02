@@ -14,6 +14,10 @@ npm run dev
 
 Buka http://localhost:3000.
 
+## Auto-deploy ke VPS
+
+VPS dapat mengambil perubahan branch `main` secara otomatis setiap satu menit, membangun rilis baru, lalu mengganti aplikasi setelah pemeriksaan berhasil. Panduan pemasangan dan operasional ada di [deploy/vps/README.md](deploy/vps/README.md).
+
 ## Akses publik dari laptop Windows
 
 Dari folder utama project, jalankan PowerShell:
