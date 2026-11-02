@@ -10,6 +10,7 @@ import { FOLLOW_UP_STATUSES, followUpStatus } from '@/lib/visit-reports';
 import styles from './VisitedStoresMap.module.css';
 
 interface MapVisit { key: string; listId: string; listName: string; area: string; store: Visit }
+interface LocationAttempt { url: string; status: 'pending' | 'processing' | 'failed'; reason: string }
 const hasCoordinates = ({ store }: MapVisit) => Number.isFinite(store.lat) && Number.isFinite(store.lng)
   && Math.abs(store.lat) <= 90 && Math.abs(store.lng) <= 180 && (store.lat !== 0 || store.lng !== 0);
 const storeName = (entry: MapVisit) => entry.store.name || 'Toko belum diberi nama';
@@ -126,6 +127,7 @@ export default function VisitedStoresMap({ lists, workspace, onEdit, reportMode 
   const recovery = useRef(false);
   const [recovering, setRecovering] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState('');
+  const [locationAttempts, setLocationAttempts] = useState<Record<string, LocationAttempt>>({});
   useEffect(() => () => { recovery.current = false; }, []);
   const validFilter = showListFilter && lists.some(list => list.id === filter) ? filter : '';
   const entries = useMemo(() => lists.filter(list => !validFilter || list.id === validFilter).flatMap(list =>
@@ -134,20 +136,32 @@ export default function VisitedStoresMap({ lists, workspace, onEdit, reportMode 
     }))), [lists, validFilter]);
   const mapped = useMemo(() => entries.filter(hasCoordinates), [entries]);
   const selected = entries.find(entry => entry.key === selectedKey);
-  const missing = entries.length - mapped.length;
-  const recoverable = entries.filter(entry => !hasCoordinates(entry) && isGoogleMapsLink(entry.store.url));
+  const missingEntries = entries.filter(entry => !hasCoordinates(entry));
+  const missing = missingEntries.length;
+  const recoverable = missingEntries.filter(entry => isGoogleMapsLink(entry.store.url));
+  function recordAttempt(entry: MapVisit, status: LocationAttempt['status'], reason = '') {
+    setLocationAttempts(current => ({ ...current, [entry.key]: { url: entry.store.url, status, reason } }));
+  }
   async function recoverLocations() {
     if (recovering) return;
     recovery.current = true; setRecovering(true);
+    setLocationAttempts(current => ({ ...current, ...Object.fromEntries(recoverable.map(entry => [entry.key, { url: entry.store.url, status: 'pending' as const, reason: '' }])) }));
     let done = 0, resolved = 0, failed = 0, reason = '';
     for (const entry of recoverable) {
       if (!recovery.current) break;
+      recordAttempt(entry, 'processing');
       setRecoveryMessage(`Mengambil lokasi ${done + 1} dari ${recoverable.length}: ${storeName(entry)}…`);
       try {
         const result = await resolveVisitLocation(entry.listId, entry.store.visitId);
-        if (result.resolved) resolved++; else { failed++; reason = result.reason || ''; }
+        if (result.resolved) resolved++; else {
+          failed++; reason = result.reason || 'Koordinat pin belum ditemukan dari tautan Google Maps.';
+          recordAttempt(entry, 'failed', reason);
+        }
         done++;
-      } catch (error) { reason = error instanceof Error ? error.message : 'Lokasi belum dapat disimpan.'; break; }
+      } catch (error) {
+        reason = error instanceof Error ? error.message : 'Lokasi belum dapat disimpan.';
+        recordAttempt(entry, 'pending', reason); break;
+      }
     }
     setRecoveryMessage(`${resolved} lokasi berhasil dilengkapi, ${failed} belum ditemukan, ${recoverable.length - done} belum diproses.${reason ? ` ${reason}` : ''}`);
     recovery.current = false; setRecovering(false);
@@ -174,6 +188,26 @@ export default function VisitedStoresMap({ lists, workspace, onEdit, reportMode 
     </div>}
     {recovering && <button type="button" className="btn btn-secondary" onClick={() => { recovery.current = false; }}>Hentikan setelah toko ini</button>}
     {recoveryMessage && <p role="status" className={styles.locationNote}>{recoveryMessage}</p>}
+    {!!missing && <section className={styles.unmappedPanel} aria-labelledby="unmapped-stores-heading">
+      <header><h3 id="unmapped-stores-heading">Toko yang belum muncul di peta</h3><span>{missing} toko</span></header>
+      <p>Periksa nama toko dan hasil pencarian lokasinya di bawah. Toko otomatis hilang dari daftar ini setelah koordinatnya tersimpan.</p>
+      <ul className={styles.unmappedList} aria-label="Toko tanpa titik di peta">{missingEntries.map(entry => {
+        const attempt = locationAttempts[entry.key]?.url === entry.store.url ? locationAttempts[entry.key] : undefined;
+        const hasLink = isGoogleMapsLink(entry.store.url);
+        const status = !hasLink ? 'Belum diproses' : attempt?.status === 'failed' ? 'Belum ditemukan' : attempt?.status === 'processing' ? 'Sedang diproses' : 'Belum diproses';
+        const reason = !hasLink ? 'Tautan Google Maps belum diisi atau tidak valid. Buka catatan untuk melengkapi lokasi.'
+          : attempt?.reason || (attempt?.status === 'processing' ? 'Sedang membaca koordinat dari tautan Google Maps.' : 'Pencarian lokasi belum dijalankan atau belum mencapai toko ini.');
+        return <li key={entry.key}>
+          <div><strong>{storeName(entry)}</strong><small>{entry.area} · {entry.listName}</small>
+            <span className={styles.locationStatus} data-status={attempt?.status || 'pending'}>{status}</span>
+            <p>{reason}</p></div>
+          <div className={styles.unmappedActions}>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={recovering} onClick={() => onEdit(entry.listId, entry.store.visitId)} aria-label={`Buka catatan ${storeName(entry)}`}>Buka catatan</button>
+            {hasLink && <a className="btn btn-secondary btn-sm" href={entry.store.url} target="_blank" rel="noopener noreferrer" aria-label={`Buka Google Maps ${storeName(entry)}`}>Google Maps</a>}
+          </div>
+        </li>;
+      })}</ul>
+    </section>}
     <div className={styles.layout}>
       {mapped.length ? <MapCanvas entries={mapped} selectedKey={selectedKey} onSelect={setSelectedKey} reportMode={reportMode} />
         : <div className={styles.empty}><h3>{entries.length ? 'Lokasi toko belum tersedia' : 'Belum ada toko yang sudah dikunjungi'}</h3><p>{entries.length ? 'Ambil lokasi toko dari formulir Catat kunjungan agar titiknya tampil di peta.' : 'Simpan catatan dengan status “Sudah dikunjungi” untuk menampilkan toko di peta.'}</p></div>}
