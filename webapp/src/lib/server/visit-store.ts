@@ -74,7 +74,7 @@ function source(value: unknown): VisitList["source"] {
   const raw = object(value);
   if (!["area", "map", "road"].includes(String(raw.mode))) throw new DataError("Sumber daftar tidak sesuai.");
   const result: VisitList["source"] = { mode: raw.mode as VisitList["source"]["mode"] };
-  if (raw.selection === "manual") result.selection = "manual";
+  if (raw.selection === "manual" || raw.selection === "excel") result.selection = raw.selection;
   if (raw.bounds !== undefined) result.bounds = text(raw.bounds);
   if (raw.road !== undefined) result.road = text(raw.road, 1000);
   if (raw.lengthMeters !== undefined) result.lengthMeters = numeric(raw.lengthMeters);
@@ -166,7 +166,9 @@ function importLegacy(db: DatabaseSync, username: string, legacyRaw: unknown) {
   db.prepare("INSERT INTO imports VALUES(?,?,?)").run(username, fingerprint, now);
   return { importedLists, importedStores, alreadyImported: false, fingerprint };
 }
-function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now: string) {
+function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now: string, agent = false) {
+  if (agent && db.prepare("SELECT workspace FROM accounts WHERE username=?").get(username)?.workspace !== "agen")
+    throw new DataError("Impor template kunjungan ini hanya tersedia untuk akun agen.", 403);
   if (!Array.isArray(rawGroups) || !rawGroups.length || rawGroups.length > 1000)
     throw new DataError("Jumlah daftar impor harus antara 1 dan 1.000.");
   let total = 0;
@@ -180,14 +182,21 @@ function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now
       const store = normalizeVisit(value);
       if (!store.name.trim()) throw new DataError("Nama usaha wajib diisi.");
       store.id = randomUUID(); store.visitId = randomUUID(); store.status = "visited";
-      store.visitArea = store.visitArea?.trim() || area; store.updatedAt = now;
+      store.visitArea = agent ? area : store.visitArea?.trim() || area; store.updatedAt = now;
       return store;
     });
     return { name, area, stores };
   });
   const seen = new Set(db.prepare("SELECT data_json FROM visits WHERE username=?").all(username)
     .map(row => identity(JSON.parse(String(row.data_json)))));
-  let added = 0, skipped = 0;
+  const areaKey = (area: string) => area.normalize('NFKC').trim().toLocaleLowerCase('id-ID').replace(/\s+/g, ' ');
+  const importedAreas = new Map<string, { id: string; area: string }>();
+  if (agent) {
+    for (const list of readLists(username))
+      if (list.source.selection === 'excel') importedAreas.set(areaKey(list.area), { id: list.id, area: list.area });
+  }
+  let added = 0, skipped = 0, createdLists = 0;
+  const updatedLists = new Set<string>(), listIds = new Set<string>();
   for (const group of groups) {
     const stores = group.stores.filter(store => {
       const key = identity(store);
@@ -195,12 +204,27 @@ function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now
       seen.add(key); return true;
     });
     if (!stores.length) continue;
-    const listId = randomUUID();
-    db.prepare("INSERT INTO visit_lists VALUES(?,?,?,?,?,?,?)")
-      .run(username, listId, group.name, group.area, JSON.stringify({ mode: "area", selection: "manual" }), now, now);
-    for (const store of stores) { insertVisit(db, username, listId, store); added++; }
+    const existing = agent ? importedAreas.get(areaKey(group.area)) : undefined;
+    let listId = existing?.id;
+    const canonicalArea = existing?.area || group.area;
+    if (!listId) {
+      listId = randomUUID();
+      db.prepare("INSERT INTO visit_lists VALUES(?,?,?,?,?,?,?)")
+        .run(username, listId, agent ? group.area : group.name, group.area,
+          JSON.stringify({ mode: "area", selection: agent ? "excel" : "manual" }), now, now);
+      createdLists++;
+      if (agent) importedAreas.set(areaKey(group.area), { id: listId, area: group.area });
+    } else {
+      db.prepare("UPDATE visit_lists SET updated_at=? WHERE username=? AND id=?").run(now, username, listId);
+      updatedLists.add(listId);
+    }
+    listIds.add(listId);
+    for (const store of stores) {
+      if (agent) store.visitArea = canonicalArea;
+      insertVisit(db, username, listId, store); added++;
+    }
   }
-  return { added, skipped };
+  return agent ? { added, skipped, createdLists, updatedLists: updatedLists.size, listIds: [...listIds] } : { added, skipped };
 }
 export function visitCommand(username: string, body: Record<string, unknown>) {
   const commandId = id(body.commandId);
@@ -210,6 +234,7 @@ export function visitCommand(username: string, body: Record<string, unknown>) {
     const now = new Date().toISOString(); let result: Record<string, unknown> = {};
     if (body.action === "import") result = importLegacy(db, username, body.legacyRaw);
     else if (body.action === "import-excel") result = importExcel(db, username, body.groups, now);
+    else if (body.action === "import-agent-excel") result = importExcel(db, username, body.groups, now, true);
     else if (body.action === "save-list") {
       const input = object(body.input);
       if (!Array.isArray(input.stores) || !input.stores.length || input.stores.length > 10000) throw new DataError("Pilih minimal satu toko.");

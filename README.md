@@ -72,6 +72,29 @@ npm run db:backup
 Backup tersimpan di `webapp/data/backups` dan dapat dibuat ketika server masih menyala.
 Detail pemindahan data lama, konflik penyimpanan, dan path database ada di [webapp/README.md](webapp/README.md).
 
+## Impor kunjungan agen dari Excel
+
+Di workspace agen, buka **Kunjungan** atau **Laporan**, lalu pilih **Impor Excel**.
+Unggah file `.xlsx` maksimal 15 MB, periksa sheet dan pembagian daerah pada pratinjau, lalu tekan tombol impor.
+Sheet dengan kolom paling lengkap dipilih otomatis. Pilihan sheet dapat diubah sebelum menyimpan.
+
+- Kolom dikenali dari nama header, termasuk variasi seperti Nama Toko, No HP, Google Maps, dan Daerah. Urutan kolom dapat berubah dan header dapat berada di bawah judul sheet.
+- Setiap nilai Area Kunjungan menjadi daftar terpisah. Jika area kosong, nama area pada baris sebelumnya atau nama sheet digunakan dan ditampilkan sebagai peringatan di pratinjau.
+- Catatan, PIC, telepon, produk, LJK, potensi, follow up, hasil prospek, ID usaha, dan koordinat ikut dibaca. Penyedia agen, QRIS, serta EDC dipisahkan dari label pada kolom Produk/LJK.
+- Foto di dalam sel Excel maupun gambar di atas sel Foto Kunjungan ikut dibaca dan dikompresi sesuai batas penyimpanan aplikasi. Maksimal tiga foto per toko.
+- Data disimpan sebagai Sudah dikunjungi dan langsung masuk laporan. Potensi pada daftar impor mengikuti Excel, bukan prediksi model.
+- Impor ulang melewati toko yang sudah tersimpan pada akun tersebut, tanpa menimpa catatannya. Toko baru dari daerah yang sama ditambahkan ke daftar impor daerah tersebut.
+- ID usaha yang sudah digunakan akan dialokasikan ulang oleh aplikasi. Koordinat pin dibaca dari kolom Latitude/Longitude, atau dari tautan Google Maps yang memuat koordinat pin; tautan pendek yang belum memiliki koordinat tetap disimpan.
+
+Alur template dan pemisahan daerah ini khusus agen. Alur impor merchant yang sudah ada tetap menggunakan format ekspor laporan merchant.
+
+Pengujian penyimpanan impor menggunakan database sementara:
+
+```sh
+cd webapp
+npm run test:agent-import
+```
+
 ## Fitur saat ini
 
 - Agen: pencarian berdasarkan nama daerah atau area gambar di peta, klasifikasi toko, simpan daftar canvasing.

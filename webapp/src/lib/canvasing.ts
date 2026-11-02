@@ -166,3 +166,10 @@ export const displayAddress = (address: string): string =>
 export async function importExcelVisits(groups: import('./visit-excel-import').ExcelVisitGroup[], commandId: string) {
   return await command({ action: "import-excel", groups }, commandId) as { added: number; skipped: number };
 }
+
+export async function importAgentExcelVisits(groups: import('./agent-visit-excel').AgentExcelGroup[], commandId: string) {
+  if (activeUser?.workspace !== 'agen') throw new Error('Masuk sebagai agen untuk mengimpor template kunjungan.');
+  return await command({ action: 'import-agent-excel', groups }, commandId) as {
+    added: number; skipped: number; createdLists: number; updatedLists: number; listIds: string[];
+  };
+}

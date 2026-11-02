@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useVisitLists, displayAddress } from '@/lib/canvasing';
@@ -12,6 +12,7 @@ import { Icon } from '@/components/Icon';
 const VisitedStoresMap = dynamic(() => import('../canvasing/VisitedStoresMap'), { ssr: false, loading: () => <p role="status">Memuat peta kunjungan…</p> });
 const VisitEditor = dynamic(() => import('../canvasing/VisitEditor'), { ssr: false, loading: () => <p role="status">Memuat catatan kunjungan…</p> });
 const ImportVisitData = dynamic(() => import('./ImportVisitData'), { ssr: false, loading: () => <p role="status">Memuat impor Excel…</p> });
+const ImportAgentVisits = dynamic(() => import('../canvasing/ImportAgentVisits'), { ssr: false, loading: () => <p role="status">Menyiapkan impor Excel…</p> });
 const PAGE_SIZE = 15;
 const count = (value: number) => value.toLocaleString('id-ID');
 
@@ -19,6 +20,8 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
   const { lists, error, loading } = useVisitLists();
   const [importing, setImporting] = useState(false);
   const [importNotice, setImportNotice] = useState('');
+  const agentImportButton = useRef<HTMLButtonElement>(null);
+  function closeAgentImport() { setImporting(false); requestAnimationFrame(() => agentImportButton.current?.focus()); }
   const [filters, setFilters] = useState({ area: '', category: '', status: '' });
   const [view, setView] = useState<'overview' | 'map'>('overview');
   const [page, setPage] = useState(0);
@@ -58,11 +61,12 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
   return <div className={styles.page}>
     <header className={styles.header}>
       <div><h1>Laporan kunjungan</h1><p>Visualisasi dan insight dari usaha yang sudah dikunjungi.</p></div>
-      <div className={styles.headerActions}>{workspace === 'merchant' && <button type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="merchant-import" onClick={() => { setImporting(true); setImportNotice(''); }}><Icon name="database" />Import Data</button>}<button type="button" className="btn btn-secondary" disabled={exporting || !!error || !filtered.length} onClick={exportExcel}><Icon name="external" />{exporting ? 'Menyiapkan Excel…' : 'Ekspor data laporan'}</button><Link className="btn btn-primary" href={visitLink}><Icon name="pin" />Buka kunjungan</Link></div>
+      <div className={styles.headerActions}>{workspace === 'agen' && <button ref={agentImportButton} type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="agent-report-import" onClick={() => { setImporting(true); setImportNotice(''); }}><Icon name="clipboard" />Impor Excel</button>}{workspace === 'merchant' && <button type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="merchant-import" onClick={() => { setImporting(true); setImportNotice(''); }}><Icon name="database" />Import Data</button>}<button type="button" className="btn btn-secondary" disabled={exporting || !!error || !filtered.length} onClick={exportExcel}><Icon name="external" />{exporting ? 'Menyiapkan Excel…' : 'Ekspor data laporan'}</button><Link className="btn btn-primary" href={visitLink}><Icon name="pin" />Buka kunjungan</Link></div>
     </header>
     <p className={styles.sourceNote}>Otomatis diperbarui dari database laptop untuk akun {workspace} yang sedang masuk. Hanya status “Sudah dikunjungi” yang dihitung.</p>
     {error && <div role="alert" className={styles.error}><h2>Data laporan belum dapat dibaca</h2><p>{error}</p><Link className="btn btn-secondary" href={visitLink}>Periksa data kunjungan</Link></div>}
     {workspace === 'merchant' && importing && <div id="merchant-import" className={styles.importContainer}><ImportVisitData onClose={() => setImporting(false)} onImported={message => { setImportNotice(message); setImporting(false); resetFilters(); }} /></div>}
+    {workspace === 'agen' && importing && <div id="agent-report-import" className={styles.importContainer}><ImportAgentVisits onClose={closeAgentImport} onImported={message => { setImportNotice(message); closeAgentImport(); resetFilters(); }} /></div>}
     {importNotice && <p className={styles.panel} role="status">{importNotice}</p>}
     {exportError && <p role="alert" className={styles.error}>{exportError}</p>}
     {!error && <>

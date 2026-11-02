@@ -13,11 +13,13 @@ import { Icon } from "@/components/Icon";
 const VisitedStoresMap = dynamic(() => import('./VisitedStoresMap'), {
   ssr: false, loading: () => <p role="status">Menyiapkan peta kunjungan…</p>,
 });
+const ImportAgentVisits = dynamic(() => import('./ImportAgentVisits'), { ssr: false, loading: () => <p role="status">Menyiapkan impor Excel…</p> });
 
 export default function CanvasingPage({ workspace = "agen" }: { workspace?: "agen" | "merchant" }) {
   const merchant = workspace === "merchant";
   const searchLink = merchant ? "/merchant" : "/dashboard/search";
-  const { lists, error } = useVisitLists();
+  const { lists, error, loading } = useVisitLists();
+  const [importing, setImporting] = useState(false);
   const [activeId, setActiveId] = useState("");
   const [view, setView] = useState<'list' | 'map'>('list');
   const [editing, setEditing] = useState<string | null>(null);
@@ -28,6 +30,8 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const addStoreButton = useRef<HTMLButtonElement>(null);
+  const importButton = useRef<HTMLButtonElement>(null);
+  function closeImport() { setImporting(false); requestAnimationFrame(() => importButton.current?.focus()); }
   async function exportExcel(selected: VisitList[]) {
     setExporting(true); setActionError('');
     try { await (await import('@/lib/visit-excel')).downloadVisitExcel(selected, workspace); }
@@ -56,7 +60,10 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
     finally { setDeleting(false); }
   }
   return <div className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>Canvasing {workspace}</span><h1>{merchant ? "Kunjungan merchant" : "Kunjungan"}</h1><p>Kelola daftar toko dan catat hasil kunjungan.</p></div><Link className="btn btn-primary" href={searchLink}><Icon name="search" />{merchant ? "Cari merchant" : "Cari toko"}</Link></header>
+    <header className={styles.header}><div><span className={styles.eyebrow}>Canvasing {workspace}</span><h1>{merchant ? "Kunjungan merchant" : "Kunjungan"}</h1><p>Kelola daftar toko dan catat hasil kunjungan.</p></div><div className={styles.headerActions}>
+      {!merchant && <button ref={importButton} type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="agent-visit-import" onClick={() => { setImporting(true); setNotice(''); }}><Icon name="clipboard" />Impor Excel</button>}
+      <Link className="btn btn-primary" href={searchLink}><Icon name="search" />{merchant ? "Cari merchant" : "Cari toko"}</Link></div></header>
+    {!merchant && importing && <div id="agent-visit-import"><ImportAgentVisits onClose={closeImport} onImported={(message, listId) => { setNotice(message); if (listId) setActiveId(listId); setView('list'); closeImport(); }} /></div>}
     <p className={styles.storageNote}>Tersimpan di database laptop untuk akun yang sedang masuk. Bisa dibuka dari perangkat lain saat server menyala.</p>
     {actionError && <p role="alert" className={styles.exportError}>{actionError}</p>}
     {notice && <p role="status" className={styles.actionNotice}>{notice}</p>}
@@ -75,7 +82,7 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
         </button>)}
       </aside>
       <section className={styles.detail}>
-        <div className={styles.listHeading}><span className={styles.eyebrow}>{active.source.mode === "road" ? "DARI RUAS JALAN" : active.source.mode === "map" ? "DARI AREA PETA" : "DARI NAMA DAERAH"}</span><h2>{active.name}</h2><p>{active.area} · {done}/{active.stores.length} toko dikunjungi</p><small>Disimpan {new Date(active.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</small></div>
+        <div className={styles.listHeading}><span className={styles.eyebrow}>{active.source.selection === 'excel' ? 'DARI EXCEL' : active.source.mode === "road" ? "DARI RUAS JALAN" : active.source.mode === "map" ? "DARI AREA PETA" : "DARI NAMA DAERAH"}</span><h2>{active.name}</h2><p>{active.area} · {done}/{active.stores.length} toko dikunjungi</p><small>Disimpan {new Date(active.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</small></div>
         <div className={styles.listTools}>
           <button ref={addStoreButton} className="btn btn-primary" onClick={() => setEditing("new")}><Icon name="plus" />Tambah toko lapangan</button>
           <button className="btn btn-secondary" disabled={exporting || !!error || !active.stores.length} onClick={() => exportExcel([active])}>{exporting ? 'Menyiapkan Excel...' : 'Ekspor daftar ini'}</button>
@@ -84,7 +91,7 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
         {!active.stores.length && <div className={styles.emptyList}><h3>Daftar ini belum memiliki toko</h3><p>Tambah toko lapangan atau pilih toko dari pencarian.</p><Link className="btn btn-secondary btn-sm" href={searchLink}>{merchant ? 'Cari merchant' : 'Cari toko'}</Link></div>}
         <div className={styles.stores}>{active.stores.map((item, index) => <article key={item.visitId} className={styles.store}>
           <span className={styles.number}>{String(index + 1).padStart(2, "0")}</span>
-          <div className={styles.storeInfo}><h3>{item.name || "Toko belum diberi nama"}</h3><p>{displayAddress(item.address)}</p><small>{displayCategory(item)}</small><div className={styles.badges}><span data-visited={item.status === "visited"}>{item.status === "visited" ? "Sudah dikunjungi" : "Belum dikunjungi"}</span>{!merchant && <span data-potential={item.classification?.label === "potensial"}>{item.classification?.label === "potensial" ? "Potensial" : "Perlu tinjau"}</span>}</div>{item.pic && <p>PIC: {item.pic}{item.phone ? ` · ${item.phone}` : ""}</p>}{item.prospectResult && <p>Hasil: {item.prospectResult}</p>}{item.followUp && <p>Tindak lanjut: {item.followUp}</p>}{item.visitArea && <p>Area: {item.visitArea}</p>}{!!item.visitPhotos?.length && <p>{item.visitPhotos.length} foto kunjungan tersimpan</p>}{item.notes && <p className={styles.note}>{item.notes}</p>}</div>
+          <div className={styles.storeInfo}><h3>{item.name || "Toko belum diberi nama"}</h3><p>{displayAddress(item.address)}</p><small>{displayCategory(item)}</small><div className={styles.badges}><span data-visited={item.status === "visited"}>{item.status === "visited" ? "Sudah dikunjungi" : "Belum dikunjungi"}</span>{!merchant && (active.source.selection === 'excel' ? item.potential && <span>Potensi: {item.potential}</span> : <span data-potential={item.classification?.label === "potensial"}>{item.classification?.label === "potensial" ? "Potensial" : "Perlu tinjau"}</span>)}</div>{item.pic && <p>PIC: {item.pic}{item.phone ? ` · ${item.phone}` : ""}</p>}{item.prospectResult && <p>Hasil: {item.prospectResult}</p>}{item.followUp && <p>Tindak lanjut: {item.followUp}</p>}{item.visitArea && <p>Area: {item.visitArea}</p>}{!!item.visitPhotos?.length && <p>{item.visitPhotos.length} foto kunjungan tersimpan</p>}{item.notes && <p className={styles.note}>{item.notes}</p>}</div>
           <div className={styles.actions}><button className="btn btn-secondary btn-sm" onClick={() => setEditing(editing === item.visitId ? null : item.visitId)}>Catat kunjungan</button>
             <button type="button" className={`btn btn-secondary btn-sm ${styles.deleteButton}`} aria-label={`Hapus toko ${item.name || 'Toko belum diberi nama'}`} disabled={exporting || !!error} onClick={() => removeStore(item)}>Hapus toko</button>
             {isGoogleMapsLink(item.url) && <a href={item.url} target="_blank" rel="noopener noreferrer">Google Maps ↗</a>}</div>

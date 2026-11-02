@@ -50,7 +50,7 @@ export interface VisitList {
   id: string;
   name: string;
   area: string;
-  source: { mode: "area" | "map" | "road"; selection?: "manual"; bounds?: string; polygon?: [number, number][]; road?: string; lengthMeters?: number; corridorMeters?: number };
+  source: { mode: "area" | "map" | "road"; selection?: "manual" | "excel"; bounds?: string; polygon?: [number, number][]; road?: string; lengthMeters?: number; corridorMeters?: number };
   createdAt: string;
   updatedAt: string;
   stores: Visit[];

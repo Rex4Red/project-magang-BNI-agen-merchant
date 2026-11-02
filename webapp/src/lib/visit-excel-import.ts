@@ -6,7 +6,7 @@ export interface ExcelVisitGroup { name: string; area: string; stores: Visit[] }
 export interface ExcelVisitPreview { groups: ExcelVisitGroup[]; total: number }
 const normalized = (value: string) => value.trim().toLocaleLowerCase('id-ID').replace(/\s+/g, ' ');
 
-async function loadVisitWorkbook(bytes: ArrayBuffer): Promise<ExcelJS.Workbook> {
+export async function loadVisitWorkbook(bytes: ArrayBuffer, readImagesSeparately = false): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(bytes);
@@ -23,7 +23,7 @@ async function loadVisitWorkbook(bytes: ArrayBuffer): Promise<ExcelJS.Workbook> 
   } catch {
     throw new Error('Isi file Excel tidak dapat dibaca. File mungkin rusak atau dilindungi kata sandi. Buka di Excel lalu simpan ulang sebagai .xlsx.');
   }
-  if (compatible.keys?.some(name => /^xl\/(media|drawings)\//i.test(name))) {
+  if (!readImagesSeparately && compatible.keys?.some(name => /^xl\/(media|drawings)\//i.test(name))) {
     throw new Error('File ini membutuhkan pembaca kompatibilitas dan berisi gambar. Agar foto tidak hilang, buka di Microsoft Excel lalu gunakan Simpan Sebagai .xlsx sebelum mengimpor kembali.');
   }
   const result = new ExcelJS.Workbook();
