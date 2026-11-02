@@ -6,11 +6,42 @@ export interface ExcelVisitGroup { name: string; area: string; stores: Visit[] }
 export interface ExcelVisitPreview { groups: ExcelVisitGroup[]; total: number }
 const normalized = (value: string) => value.trim().toLocaleLowerCase('id-ID').replace(/\s+/g, ' ');
 
+async function loadVisitWorkbook(bytes: ArrayBuffer): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.load(bytes);
+    if (workbook.worksheets.length) return workbook;
+  } catch { /* Some valid XLSX producers use XML namespaces ExcelJS cannot read. */ }
+
+  // Read cell values with the compatibility reader. Keep ExcelJS as the primary
+  // reader so native visit photos continue to be imported on the normal path.
+  const XLSX = await import('xlsx');
+  let compatible: ReturnType<typeof XLSX.read> & { keys?: string[] };
+  try {
+    compatible = XLSX.read(bytes, { type: 'array', bookFiles: true });
+    if (!compatible.SheetNames.length) throw new Error('No worksheets');
+  } catch {
+    throw new Error('Isi file Excel tidak dapat dibaca. File mungkin rusak atau dilindungi kata sandi. Buka di Excel lalu simpan ulang sebagai .xlsx.');
+  }
+  if (compatible.keys?.some(name => /^xl\/(media|drawings)\//i.test(name))) {
+    throw new Error('File ini membutuhkan pembaca kompatibilitas dan berisi gambar. Agar foto tidak hilang, buka di Microsoft Excel lalu gunakan Simpan Sebagai .xlsx sebelum mengimpor kembali.');
+  }
+  const result = new ExcelJS.Workbook();
+  for (const name of compatible.SheetNames) {
+    const sheet = compatible.Sheets[name];
+    if (sheet['!ref'] && XLSX.utils.decode_range(sheet['!ref']).e.r > 10000)
+      throw new Error(`Sheet “${name}” melebihi 10.000 baris.`);
+    const rows = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(sheet, { header: 1, raw: true, defval: null });
+    result.addWorksheet(name).addRows(rows);
+  }
+  return result;
+}
+
 export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPreview> {
   if (bytes.byteLength > 15 * 1024 * 1024) throw new Error('Ukuran file maksimal 15 MB.');
-  const workbook = new ExcelJS.Workbook();
-  try { await workbook.xlsx.load(bytes); }
-  catch { throw new Error('File tidak dapat dibaca. Gunakan file .xlsx dari Ekspor data laporan.'); }
+  if (new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength)).join(',') !== '80,75')
+    throw new Error('File tidak dapat dibaca sebagai .xlsx. Buka di Excel lalu gunakan Simpan Sebagai .xlsx, bukan hanya mengganti ekstensi file.');
+  const workbook = await loadVisitWorkbook(bytes);
   const groups: ExcelVisitGroup[] = [];
   let total = 0, payloadSize = 0;
   for (const sheet of workbook.worksheets) {
