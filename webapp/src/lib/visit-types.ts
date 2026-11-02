@@ -22,7 +22,6 @@ export interface Visit extends Prospect {
   visitId: string;
   status: "planned" | "visited";
   notes: string;
-  phone?: string;
   pic?: string;
   businessId?: string;
   product?: string;

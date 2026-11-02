@@ -103,7 +103,7 @@ test('exports omit phone headers and values; coordinates, links, and import roun
   assert.equal(sheet.getCell('R2').value, list.stores[0].businessId);
   const bytes = await workbook.xlsx.writeBuffer();
   const parsed = await importer.readVisitExcel(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
-  assert.equal(parsed.groups[0].stores[0].phone, '');
+  assert.equal(parsed.groups[0].stores[0].phone, undefined);
   assert.equal(parsed.groups[0].stores[0].lat, -7.7);
   await assert.rejects(excel.createVisitWorkbook([{ ...list, locked: true }]), /terkunci/);
 });

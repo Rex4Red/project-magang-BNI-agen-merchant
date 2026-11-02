@@ -95,10 +95,6 @@ export function reportInsights(entries: ReportEntry[]): { heading: string; text:
       ? `${leaders[0].label} memiliki kunjungan terbanyak: ${leaders[0].count} dari ${total} usaha.`
       : `${leaders.length} area memiliki jumlah kunjungan tertinggi yang sama: ${leaders[0].count} usaha per area.` });
   }
-  if (followUp.length) {
-    const withContact = followUp.filter(entry => entry.store.phone?.trim()).length;
-    insights.push({ heading: 'Kontak tindak lanjut', text: `${withContact} dari ${followUp.length} usaha yang perlu tindak lanjut sudah memiliki nomor telepon. ${followUp.length - withContact} belum memiliki nomor telepon.` });
-  }
   if (unknown || missingLocation) insights.push({ heading: 'Data belum lengkap', text: `${unknown} usaha belum memiliki status tindak lanjut yang dapat ditentukan. ${missingLocation} usaha belum memiliki koordinat yang valid untuk peta.` });
   return insights;
 }

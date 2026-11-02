@@ -167,7 +167,7 @@ export default function VisitedStoresMap({ lists, workspace, onEdit, reportMode 
     recovery.current = false; setRecovering(false);
   }
   const details = selected ? [
-    ['Nama PIC', selected.store.pic], ['No telp', selected.store.phone], ['Area kunjungan', selected.area],
+    ['Nama PIC', selected.store.pic], ['Area kunjungan', selected.area],
     ['Produk', visitProduct(selected.store)], ['LJK', visitInstitutions(selected.store)],
     ['Agen', workspace === 'agen' ? providerStatus(selected.store.agentStatus, [selected.store.agentProvider]) : undefined],
     ['QRIS', providerStatus(selected.store.qrisStatus, selected.store.qrisProviders?.length ? selected.store.qrisProviders : [selected.store.qrisProvider])],

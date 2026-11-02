@@ -39,7 +39,7 @@ export function normalizeVisit(value: unknown): Visit {
   };
   if (Math.abs(store.lat) > 90 || Math.abs(store.lng) > 180) throw new DataError("Koordinat toko tidak valid.");
   if (raw.status !== undefined && !["planned", "visited"].includes(String(raw.status))) throw new DataError("Status kunjungan tidak sesuai.");
-  for (const field of ["phone", "pic", "businessId", "product", "financialInstitutions", "potential", "followUpNotes",
+  for (const field of ["pic", "businessId", "product", "financialInstitutions", "potential", "followUpNotes",
     "agentProvider", "qrisProvider", "followUp", "prospectResult", "visitArea", "visitedAt", "updatedAt", "locationCapturedAt"] as const)
     if (raw[field] !== undefined) store[field] = text(raw[field]);
   for (const field of ["agentStatus", "qrisStatus", "edcStatus"] as const) {
@@ -97,7 +97,9 @@ export function readLists(username: string): VisitList[] {
   const grouped = new Map<string, Visit[]>();
   for (const row of visits) {
     const key = String(row.list_id); const list = grouped.get(key) || [];
-    list.push(JSON.parse(String(row.data_json))); grouped.set(key, list);
+    const store = JSON.parse(String(row.data_json)) as Visit & { phone?: unknown };
+    delete store.phone;
+    list.push(store); grouped.set(key, list);
   }
   return rows.map(row => ({ id: String(row.id), name: String(row.name), area: String(row.area),
     source: JSON.parse(String(row.source_json)), createdAt: String(row.created_at), updatedAt: String(row.updated_at),

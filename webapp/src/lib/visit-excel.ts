@@ -2,6 +2,8 @@ import ExcelJS from 'exceljs';
 import { displayAddress, displayCategory, type VisitList } from './canvasing';
 import { VISIT_EXCEL_HEADERS, PRODUCT_OPTIONS, POTENTIAL_OPTIONS, visitProduct, visitInstitutions, isGoogleMapsLink } from './visit-template';
 
+const column = (header: typeof VISIT_EXCEL_HEADERS[number]) => VISIT_EXCEL_HEADERS.indexOf(header) + 1;
+
 function sheetName(label: string, used: Set<string>): string {
   const base = `Toko_${label}`.replace(/[\\/?*\[\]:\x00-\x1f]/g, ' ').replace(/^'+|'+$/g, '').trim() || 'Toko';
   let name = base.slice(0, 31), suffix = 1;
@@ -40,9 +42,9 @@ export async function createVisitWorkbook(lists: VisitList[]) {
   if (lists.some(list => list.locked)) throw new Error("Buka daftar terkunci sebelum mengekspor.");
   for (const list of lists) {
     const sheet = workbook.addWorksheet(sheetName(list.area || list.name, usedNames));
-    sheet.columns = VISIT_EXCEL_HEADERS.filter(header => header !== 'No telp').map((header, index) => ({ header, width: widths[index] }));
+    sheet.columns = VISIT_EXCEL_HEADERS.map((header, index) => ({ header, width: widths[index] }));
     sheet.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }];
-    sheet.autoFilter = { from: 'A1', to: `R${Math.max(1, list.stores.length + 1)}` };
+    sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, list.stores.length + 1), column: VISIT_EXCEL_HEADERS.length } };
     const header = sheet.getRow(1);
     header.height = 30;
     header.eachCell(cell => {
@@ -65,15 +67,15 @@ export async function createVisitWorkbook(lists: VisitList[]) {
         cell.alignment = { vertical: 'top', wrapText: true };
         cell.border = { bottom: { style: 'hair', color: { argb: 'FFE3DED5' } } };
       });
-      for (const col of [18]) row.getCell(col).numFmt = '@';
-      for (const col of [15, 16]) row.getCell(col).numFmt = '0.000000';
+      row.getCell(column('ID Usaha')).numFmt = '@';
+      for (const header of ['Latitude', 'Longitude'] as const) row.getCell(column(header)).numFmt = '0.000000';
       if (isGoogleMapsLink(store.url)) {
-        row.getCell(6).value = { text: store.url, hyperlink: store.url };
-        row.getCell(6).font = { name: 'Calibri', size: 11, color: { argb: 'FF0563C1' }, underline: true };
-        row.getCell(6).alignment = { vertical: 'top', wrapText: false };
+        row.getCell(column('Gmaps')).value = { text: store.url, hyperlink: store.url };
+        row.getCell(column('Gmaps')).font = { name: 'Calibri', size: 11, color: { argb: 'FF0563C1' }, underline: true };
+        row.getCell(column('Gmaps')).alignment = { vertical: 'top', wrapText: false };
       }
-      for (const [col, values] of [[7, PRODUCT_OPTIONS], [9, POTENTIAL_OPTIONS], [12, POTENTIAL_OPTIONS]] as const) {
-        row.getCell(col).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${values.join(',')}"`], showErrorMessage: false };
+      for (const [header, values] of [['Produk', PRODUCT_OPTIONS], ['Potensi', POTENTIAL_OPTIONS], ['Tindak Lanjut', POTENTIAL_OPTIONS]] as const) {
+        row.getCell(column(header)).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${values.join(',')}"`], showErrorMessage: false };
       }
       const photos = await Promise.all((store.visitPhotos || []).map(photoForExcel));
       if (photos.length) {
@@ -83,7 +85,7 @@ export async function createVisitWorkbook(lists: VisitList[]) {
           const image = workbook.addImage({ base64: photo.base64, extension: photo.extension });
           // Native offsets use EMUs (9,525 per pixel); fractional row offsets can overlap photos.
           const anchor = (x: number, y: number) => ({
-            nativeCol: 12, nativeColOff: Math.round(x * 9525),
+            nativeCol: column('Foto Kunjungan') - 1, nativeColOff: Math.round(x * 9525),
             nativeRow: row.number - 1, nativeRowOff: Math.round(y * 9525),
           }) as ExcelJS.Anchor;
           const top = 4 + photoIndex * 132;

@@ -120,3 +120,29 @@ test('merchant imports retain their existing behavior and stay isolated', () => 
   assert.equal(visits.readLists('merchant').length, 1);
   assert.equal(visits.readLists('agen').length, 1);
 });
+
+for (const username of ['agen', 'merchant']) {
+  test(`${username} ignores phone fields on import and hides them in old records`, () => {
+    visits.visitCommand(username, { action: username === 'agen' ? 'import-agent-excel' : 'import-excel',
+      groups: [group('Pogung', [store('Fixture tanpa telepon', { phone: '08000000001', pic: 'PIC uji' })])],
+      commandId: randomUUID() });
+    const list = visits.readLists(username)[0], visit = list.stores[0];
+    const persisted = () => JSON.parse(db.prepare('SELECT data_json FROM visits WHERE username=? AND visit_id=?').get(username, visit.visitId).data_json);
+    assert.equal(Object.hasOwn(persisted(), 'phone'), false);
+
+    db.prepare('UPDATE visits SET data_json=? WHERE username=? AND visit_id=?')
+      .run(JSON.stringify({ ...visit, phone: '08000000002' }), username, visit.visitId);
+    const snapshot = visits.visitSnapshot(username).lists[0].stores[0];
+    assert.equal(Object.hasOwn(snapshot, 'phone'), false);
+    assert.equal(snapshot.pic, 'PIC uji');
+    assert.equal(snapshot.notes, visit.notes);
+    assert.deepEqual(snapshot.qrisProviders, visit.qrisProviders);
+    assert.equal(persisted().phone, '08000000002');
+
+    visits.visitCommand(username, { action: 'update-visit', listId: list.id, visitId: visit.visitId,
+      expectedUpdatedAt: visit.updatedAt, patch: { notes: 'Catatan diperbarui', phone: '08000000003' }, commandId: randomUUID() });
+    assert.equal(Object.hasOwn(persisted(), 'phone'), false);
+    assert.equal(persisted().notes, 'Catatan diperbarui');
+    assert.equal(persisted().pic, 'PIC uji');
+  });
+}
