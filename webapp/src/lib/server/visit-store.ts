@@ -166,6 +166,42 @@ function importLegacy(db: DatabaseSync, username: string, legacyRaw: unknown) {
   db.prepare("INSERT INTO imports VALUES(?,?,?)").run(username, fingerprint, now);
   return { importedLists, importedStores, alreadyImported: false, fingerprint };
 }
+function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now: string) {
+  if (!Array.isArray(rawGroups) || !rawGroups.length || rawGroups.length > 1000)
+    throw new DataError("Jumlah daftar impor harus antara 1 dan 1.000.");
+  let total = 0;
+  const groups = rawGroups.map(value => {
+    const raw = object(value), name = text(raw.name, 1000).trim(), area = text(raw.area, 1000).trim();
+    if (!name || !area || !Array.isArray(raw.stores) || !raw.stores.length)
+      throw new DataError("Nama daftar, area, dan data usaha impor wajib diisi.");
+    total += raw.stores.length;
+    if (total > 10000) throw new DataError("Maksimal 10.000 usaha dalam satu impor.");
+    const stores = raw.stores.map(value => {
+      const store = normalizeVisit(value);
+      if (!store.name.trim()) throw new DataError("Nama usaha wajib diisi.");
+      store.id = randomUUID(); store.visitId = randomUUID(); store.status = "visited";
+      store.visitArea = store.visitArea?.trim() || area; store.updatedAt = now;
+      return store;
+    });
+    return { name, area, stores };
+  });
+  const seen = new Set(db.prepare("SELECT data_json FROM visits WHERE username=?").all(username)
+    .map(row => identity(JSON.parse(String(row.data_json)))));
+  let added = 0, skipped = 0;
+  for (const group of groups) {
+    const stores = group.stores.filter(store => {
+      const key = identity(store);
+      if (seen.has(key)) { skipped++; return false; }
+      seen.add(key); return true;
+    });
+    if (!stores.length) continue;
+    const listId = randomUUID();
+    db.prepare("INSERT INTO visit_lists VALUES(?,?,?,?,?,?,?)")
+      .run(username, listId, group.name, group.area, JSON.stringify({ mode: "area", selection: "manual" }), now, now);
+    for (const store of stores) { insertVisit(db, username, listId, store); added++; }
+  }
+  return { added, skipped };
+}
 export function visitCommand(username: string, body: Record<string, unknown>) {
   const commandId = id(body.commandId);
   return transaction(db => {
@@ -173,6 +209,7 @@ export function visitCommand(username: string, body: Record<string, unknown>) {
     if (previous) return JSON.parse(String(previous.result_json));
     const now = new Date().toISOString(); let result: Record<string, unknown> = {};
     if (body.action === "import") result = importLegacy(db, username, body.legacyRaw);
+    else if (body.action === "import-excel") result = importExcel(db, username, body.groups, now);
     else if (body.action === "save-list") {
       const input = object(body.input);
       if (!Array.isArray(input.stores) || !input.stores.length || input.stores.length > 10000) throw new DataError("Pilih minimal satu toko.");

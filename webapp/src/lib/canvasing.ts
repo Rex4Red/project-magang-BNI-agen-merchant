@@ -115,14 +115,14 @@ export async function retryLegacyImport() {
   if (activeUser) cacheFor(activeUser).migratedDatabaseId = undefined;
   await refreshVisits(true);
 }
-async function command(body: Record<string, unknown>) {
+async function command(body: Record<string, unknown>, commandId?: string) {
   const user = activeUser;
   if (!user) throw new Error("Masuk kembali untuk menyimpan kunjungan.");
   const cache = cacheFor(user);
   if (!cache.initialized || cache.state.loading || cache.state.error)
     throw new Error("Tunggu data database selesai dimuat atau coba hubungkan kembali.");
   try {
-    const data = await post(user, body); apply(cache, user, data); return data.result || {};
+    const data = await post(user, body, commandId); apply(cache, user, data); return data.result || {};
   } catch (error) {
     void refreshVisits(true);
     throw error instanceof Error ? error : new Error("Penyimpanan belum dapat dipastikan. Periksa daftar lalu coba lagi.");
@@ -159,3 +159,7 @@ export const displayAddress = (address: string): string =>
 
 
 
+
+export async function importExcelVisits(groups: import('./visit-excel-import').ExcelVisitGroup[], commandId: string) {
+  return await command({ action: "import-excel", groups }, commandId) as { added: number; skipped: number };
+}
