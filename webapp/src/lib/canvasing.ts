@@ -147,6 +147,9 @@ export async function deleteVisit(listId: string, visitId: string, expectedUpdat
 export async function addManualVisit(listId: string, visit: Visit) {
   await command({ action: "add-manual", listId, visit });
 }
+export async function resolveVisitLocation(listId: string, visitId: string) {
+  return await command({ action: 'resolve-location', listId, visitId, expectedUpdatedAt: expectedTime(listId, visitId) }) as { resolved: boolean; reason?: string };
+}
 export const displayCategory = (store: Prospect): string => {
   let category = store.category.trim();
   if (category.toLowerCase().startsWith(store.name.toLowerCase())) category = category.slice(store.name.length);

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { authenticatedUser, DataError } from "@/lib/server/database";
-import { version, visitCommand, visitSnapshot } from "@/lib/server/visit-store";
+import { readLists, version, visitCommand, visitSnapshot } from "@/lib/server/visit-store";
+import { resolveGoogleMapsCoordinates } from "@/lib/server/maps-coordinates";
 import { SESSION_COOKIE, NO_STORE, apiError, bodyJson, checkWriteRequest } from "@/lib/server/request";
 
 export const runtime = "nodejs";
@@ -22,7 +23,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     checkWriteRequest(request); const user = userFor(request);
-    const result = visitCommand(user.username, await bodyJson(request));
+    const body = await bodyJson(request);
+    let result;
+    if (body.action === 'resolve-location') {
+      const store = readLists(user.username).find(list => list.id === body.listId)?.stores.find(store => store.visitId === body.visitId);
+      if (!store) throw new DataError('Toko tersimpan tidak ditemukan. Muat ulang daftar.', 404);
+      if (Number.isFinite(store.lat) && Number.isFinite(store.lng) && (store.lat !== 0 || store.lng !== 0)) {
+        result = { resolved: true };
+      } else {
+        if (body.expectedUpdatedAt !== (store.updatedAt || null)) throw new DataError('Catatan berubah. Muat ulang lalu coba lagi.', 409);
+        let coordinates;
+        try { coordinates = await resolveGoogleMapsCoordinates(store.url); }
+        catch { coordinates = null; }
+        if (coordinates) {
+          visitCommand(user.username, { ...body, action: 'update-visit', patch: coordinates });
+          result = { resolved: true };
+        } else result = { resolved: false, reason: 'Koordinat pin tidak ditemukan di tautan Google Maps atau layanan belum dapat dihubungi. Isi Latitude dan Longitude di Excel, atau ambil lokasi saat berada di toko.' };
+      }
+    } else result = visitCommand(user.username, body);
     return Response.json({ ...visitSnapshot(user.username), result }, { headers: NO_STORE });
   } catch (error) { return apiError(error); }
 }

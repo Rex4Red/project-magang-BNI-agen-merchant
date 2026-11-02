@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type * as Leaflet from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { displayAddress, displayCategory, type Visit, type VisitList } from '@/lib/canvasing';
+import { displayAddress, displayCategory, resolveVisitLocation, type Visit, type VisitList } from '@/lib/canvasing';
 import { isGoogleMapsLink, visitInstitutions, visitProduct } from '@/lib/visit-template';
 import { PhotoPreview } from './VisitEditor';
 import { FOLLOW_UP_STATUSES, followUpStatus } from '@/lib/visit-reports';
@@ -123,6 +123,10 @@ export default function VisitedStoresMap({ lists, workspace, onEdit, reportMode 
   const [filter, setFilter] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
   const [preview, setPreview] = useState<{ src: string; number: number } | null>(null);
+  const recovery = useRef(false);
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState('');
+  useEffect(() => () => { recovery.current = false; }, []);
   const validFilter = showListFilter && lists.some(list => list.id === filter) ? filter : '';
   const entries = useMemo(() => lists.filter(list => !validFilter || list.id === validFilter).flatMap(list =>
     list.stores.filter(store => store.status === 'visited').map(store => ({
@@ -131,6 +135,23 @@ export default function VisitedStoresMap({ lists, workspace, onEdit, reportMode 
   const mapped = useMemo(() => entries.filter(hasCoordinates), [entries]);
   const selected = entries.find(entry => entry.key === selectedKey);
   const missing = entries.length - mapped.length;
+  const recoverable = entries.filter(entry => !hasCoordinates(entry) && isGoogleMapsLink(entry.store.url));
+  async function recoverLocations() {
+    if (recovering) return;
+    recovery.current = true; setRecovering(true);
+    let done = 0, resolved = 0, failed = 0, reason = '';
+    for (const entry of recoverable) {
+      if (!recovery.current) break;
+      setRecoveryMessage(`Mengambil lokasi ${done + 1} dari ${recoverable.length}: ${storeName(entry)}…`);
+      try {
+        const result = await resolveVisitLocation(entry.listId, entry.store.visitId);
+        if (result.resolved) resolved++; else { failed++; reason = result.reason || ''; }
+        done++;
+      } catch (error) { reason = error instanceof Error ? error.message : 'Lokasi belum dapat disimpan.'; break; }
+    }
+    setRecoveryMessage(`${resolved} lokasi berhasil dilengkapi, ${failed} belum ditemukan, ${recoverable.length - done} belum diproses.${reason ? ` ${reason}` : ''}`);
+    recovery.current = false; setRecovering(false);
+  }
   const details = selected ? [
     ['Nama PIC', selected.store.pic], ['No telp', selected.store.phone], ['Area kunjungan', selected.area],
     ['Produk', visitProduct(selected.store)], ['LJK', visitInstitutions(selected.store)],
@@ -147,7 +168,12 @@ export default function VisitedStoresMap({ lists, workspace, onEdit, reportMode 
       <div><h2 id="visited-map-heading">Peta kunjungan</h2><p aria-live="polite">{entries.length} toko sudah dikunjungi · {mapped.length} titik di peta</p></div>
       {showListFilter && <label>Daftar kunjungan<select value={validFilter} onChange={event => { setFilter(event.target.value); setSelectedKey(''); }}><option value="">Semua daftar</option>{lists.map(list => <option key={list.id} value={list.id}>{list.name}</option>)}</select></label>}
     </header>
-    {!!missing && <p className={styles.locationNote}>{missing} toko belum memiliki koordinat yang valid. Buka catatannya untuk mengambil lokasi.</p>}
+    {!!missing && <div className={styles.locationNote}><p>{missing} toko belum memiliki Latitude dan Longitude. Tautan Google Maps perlu dibaca terlebih dahulu agar titik dapat ditampilkan.</p>
+      {!!recoverable.length && <button type="button" className="btn btn-secondary" disabled={recovering} onClick={() => void recoverLocations()}>{recovering ? 'Mengambil koordinat…' : `Lengkapi lokasi dari Google Maps (${recoverable.length})`}</button>}
+      <p>Lokasi yang ditemukan disimpan ke catatan tanpa perlu mengimpor ulang. Toko tanpa tautan atau pin yang dapat dibaca dapat dilengkapi melalui kolom Latitude dan Longitude di Excel, atau “Ambil lokasi saya” saat berada di toko.</p>
+    </div>}
+    {recovering && <button type="button" className="btn btn-secondary" onClick={() => { recovery.current = false; }}>Hentikan setelah toko ini</button>}
+    {recoveryMessage && <p role="status" className={styles.locationNote}>{recoveryMessage}</p>}
     <div className={styles.layout}>
       {mapped.length ? <MapCanvas entries={mapped} selectedKey={selectedKey} onSelect={setSelectedKey} reportMode={reportMode} />
         : <div className={styles.empty}><h3>{entries.length ? 'Lokasi toko belum tersedia' : 'Belum ada toko yang sudah dikunjungi'}</h3><p>{entries.length ? 'Ambil lokasi toko dari formulir Catat kunjungan agar titiknya tampil di peta.' : 'Simpan catatan dengan status “Sudah dikunjungi” untuk menampilkan toko di peta.'}</p></div>}
