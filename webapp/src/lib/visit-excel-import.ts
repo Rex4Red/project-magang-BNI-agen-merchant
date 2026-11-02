@@ -90,7 +90,7 @@ export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPrev
       for (const header of VISIT_EXCEL_HEADERS) if (value(header).length > 65536) fail(`isian ${header} terlalu panjang.`);
       const store: Visit = {
         id: '', visitId: '', name, address: value('Alamat'), category: value('kategori'),
-        pic: value('Nama PIC'), phone: value('No telp'), url: value('Gmaps'),
+        pic: value('Nama PIC'), url: value('Gmaps'),
         product: value('Produk'), financialInstitutions: value('LJK'), potential: value('Potensi'),
         followUpNotes: value('Follow up'), notes: value('Catatan'), followUp: value('Tindak Lanjut'),
         prospectResult: value('Hasil Prospek'), businessId: value('ID Usaha'), visitArea: area,

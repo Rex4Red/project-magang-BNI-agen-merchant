@@ -72,9 +72,9 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
   const paymentDetails = visitPaymentDetails({ ...draft, agentStatus });
   function patch(values: Partial<Visit>) { setDraft(current => ({ ...current, ...values })); setDirty(true); setMessage(''); }
   function close() { if (busy || locating || saving) return; if (dirty) setDiscardOpen(true); else onClose(); }
-  const text = (key: 'name' | 'category' | 'address' | 'phone' | 'pic' | 'visitArea' | 'url', label: string) => key === 'category'
+  const text = (key: 'name' | 'category' | 'address' | 'pic' | 'visitArea' | 'url', label: string) => key === 'category'
     ? <ChoiceInput label={label} value={draft.category || ''} options={CATEGORY_OPTIONS} onChange={value => patch({ category: value })} />
-    : <label>{label}<input maxLength={key === 'url' ? 2000 : key === 'address' ? 1000 : 150} type={key === 'phone' ? 'tel' : 'text'} value={draft[key] || ''} onChange={event => patch({ [key]: event.target.value })} /></label>;
+    : <label>{label}<input maxLength={key === 'url' ? 2000 : key === 'address' ? 1000 : 150} type="text" value={draft[key] || ''} onChange={event => patch({ [key]: event.target.value })} /></label>;
   async function locate() {
     if (!window.isSecureContext) { setLocationMessage('Lokasi memerlukan HTTPS atau localhost. Buka aplikasi melalui alamat yang aman, lalu coba lagi.'); return; }
     if (!navigator.geolocation) { setLocationMessage('Browser tidak mendukung lokasi.'); return; }
@@ -123,7 +123,7 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
     }}>
       <div className={styles.formBody} inert={saving}>
         <fieldset><legend>01 · Identitas usaha</legend><div className={styles.fieldGrid}>
-          {text('name', 'Nama Usaha')}{text('category', 'Kategori')}{text('address', 'Alamat')}{text('pic', 'Nama PIC')}{text('phone', 'No telp')}{text('visitArea', 'Area Kunjungan')}
+          {text('name', 'Nama Usaha')}{text('category', 'Kategori')}{text('address', 'Alamat')}{text('pic', 'Nama PIC')}{text('visitArea', 'Area Kunjungan')}
           {text('url', 'Gmaps')}<label>ID Usaha<input readOnly value={draft.businessId || ''} placeholder="Dibuat otomatis saat disimpan" /></label>
         </div></fieldset>
         <fieldset><legend>02 · Lokasi toko</legend><p>Alamat toko hasil pencarian sudah terisi. Untuk toko baru, ambil lokasi ketika berada di toko. Tombol ini mengirim koordinat ke OpenStreetMap untuk mencari alamat.</p><button type="button" className="btn btn-secondary" disabled={locating || busy} onClick={locate}>{locating ? 'Mengambil lokasi…' : 'Ambil lokasi saya & isi alamat'}</button><div className={styles.fieldGrid}><label>Latitude<input readOnly value={draft.lat || ''} /></label><label>Longitude<input readOnly value={draft.lng || ''} /></label></div>{locationMessage && <p role="status">{locationMessage}</p>}{draft.locationAccuracy != null && <small>Akurasi perangkat ±{Math.round(draft.locationAccuracy)} m</small>}</fieldset>

@@ -1,7 +1,7 @@
 import type { Visit } from './canvasing';
 
 export const VISIT_EXCEL_HEADERS = [
-  'No', 'Nama Usaha', 'kategori', 'Alamat', 'Nama PIC', 'No telp', 'Gmaps',
+  'No', 'Nama Usaha', 'kategori', 'Alamat', 'Nama PIC', 'Gmaps',
   'Produk', 'LJK', 'Potensi', 'Follow up', 'Catatan', 'Tindak Lanjut',
   'Foto Kunjungan', 'Hasil Prospek', 'Latitude', 'Longitude', 'Area Kunjungan', 'ID Usaha',
 ] as const;

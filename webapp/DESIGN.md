@@ -225,13 +225,13 @@ Pada desktop, daftar daerah sekitar 240 px di kiri konten: nama daftar, area, ju
 
 Toko sebagai baris yang rapi: nama usaha, alamat, kategori, status kunjungan, dan hasil penting. Catatan panjang dibuka sebagai detail. Catat kunjungan jelas terlihat. Hapus toko merupakan aksi sekunder yang mudah ditemukan dan membuka popup konfirmasi.
 
-Pada HP, pemilih daftar di atas. Setiap baris vertikal dengan Catat kunjungan terlihat. Jangan memaksa seluruh 19 kolom menjadi tabel horizontal.
+Pada HP, pemilih daftar di atas. Setiap baris vertikal dengan Catat kunjungan terlihat. Jangan memaksa seluruh 18 kolom menjadi tabel horizontal.
 
 ### F. Catat kunjungan
 
 Kelompok form mengikuti data yang tersedia. Seluruh isian catatan tetap opsional.
 
-1. Identitas usaha: Nama Usaha, Kategori, Alamat, Nama PIC, No telp, Area Kunjungan, Gmaps, ID Usaha.
+1. Identitas usaha: Nama Usaha, Kategori, Alamat, Nama PIC, Area Kunjungan, Gmaps, ID Usaha.
 2. Lokasi: Ambil lokasi saya & isi alamat, Latitude, Longitude, status akurasi bila ada.
 3. Produk dan LJK: Produk, LJK, isi dari penyedia, status agen untuk workspace agen, QRIS dan EDC.
 4. Hasil kunjungan: Status kunjungan, Potensi, Follow up, Tindak Lanjut, Hasil Prospek, Catatan.
@@ -243,9 +243,9 @@ Dua kolom di desktop untuk pasangan field yang cukup lebar. Alamat, LJK, catatan
 
 Footer: Semua kolom opsional, Tutup, dan primary Simpan kunjungan. Sukses menampilkan Tersimpan. Jika catatan berubah dari perangkat lain, pertahankan draft dan jelaskan kebutuhan membuka data terbaru.
 
-Kontrak ekspor tetap 19 kolom dengan urutan:
+Kontrak ekspor 18 kolom dengan urutan:
 
-`No | Nama Usaha | kategori | Alamat | Nama PIC | No telp | Gmaps | Produk | LJK | Potensi | Follow up | Catatan | Tindak Lanjut | Foto Kunjungan | Hasil Prospek | Latitude | Longitude | Area Kunjungan | ID Usaha`
+`No | Nama Usaha | kategori | Alamat | Nama PIC | Gmaps | Produk | LJK | Potensi | Follow up | Catatan | Tindak Lanjut | Foto Kunjungan | Hasil Prospek | Latitude | Longitude | Area Kunjungan | ID Usaha`
 
 Urutan visual kelompok boleh membantu pengisian. Jangan menghapus field atau menyatukan Potensi, Follow up, Tindak Lanjut, dan Hasil Prospek.
 
@@ -253,7 +253,7 @@ Urutan visual kelompok boleh membantu pengisian. Jangan menghapus field atau men
 
 Peta besar dengan filter semua daftar / satu daftar. Titik hanya untuk toko berstatus Sudah dikunjungi dengan koordinat valid. Warna marker mengikuti hasil/tindak lanjut dan memiliki legenda.
 
-Klik titik membuka panel: nama, alamat, area, PIC, telepon, produk/LJK, penyedia, hasil, tindak lanjut, catatan, foto. Sertakan Catat kunjungan serta Buka di Google Maps. Di HP gunakan panel di bawah peta atau sheet yang dapat digulir tanpa menutupi seluruh kontrol.
+Klik titik membuka panel: nama, alamat, area, PIC, produk/LJK, penyedia, hasil, tindak lanjut, catatan, foto. Sertakan Catat kunjungan serta Buka di Google Maps. Di HP gunakan panel di bawah peta atau sheet yang dapat digulir tanpa menutupi seluruh kontrol.
 
 Toko tanpa koordinat tetap berada di daftar berlabel Lokasi belum tersedia dan dapat diedit. Jangan memasang titik perkiraan di tengah area.
 

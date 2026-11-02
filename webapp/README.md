@@ -102,10 +102,12 @@ Jika belum ada data, jumlahnya 0; jika penyimpanan gagal dibaca, angka diganti t
 
 ## Catat kunjungan dan ekspor Excel
 
-Form kunjungan agen dan merchant mengikuti 19 kolom pada sheet **Toko_Jenengan dan Krodan**
-dari template: No, Nama Usaha, kategori, Alamat, Nama PIC, No telp, Gmaps, Produk, LJK,
+Form kunjungan agen dan merchant mengikuti 18 kolom yang digunakan dari sheet **Toko_Jenengan dan Krodan**
+dari template: No, Nama Usaha, kategori, Alamat, Nama PIC, Gmaps, Produk, LJK,
 Potensi, Follow up, Catatan, Tindak Lanjut, Foto Kunjungan, Hasil Prospek, Latitude,
-Longitude, Area Kunjungan, dan ID Usaha. Semua isian tetap opsional.
+Longitude, Area Kunjungan, dan ID Usaha. Semua isian tetap opsional. Informasi nomor telepon
+tidak digunakan pada agen maupun merchant. File Excel lama dengan kolom telepon tetap
+dapat diimpor; kolom tersebut diabaikan.
 
 Produk dan LJK berada di bawah pilihan agen/QRIS/EDC, terisi otomatis dari status dan
 penyedia, serta hanya dapat dibaca. Perubahan jawaban atau penyedia langsung memperbarui
@@ -117,8 +119,7 @@ otomatis dengan format `USH-001` dan tetap dipertahankan saat data diperbarui.
 Di halaman Kunjungan, **Ekspor daftar ini** mengunduh daftar aktif sebagai `.xlsx`.
 **Ekspor semua daftar** membuat satu sheet untuk setiap daftar. Nama sheet mengikuti
 area kunjungan, dengan awalan `Toko_`. Foto kunjungan disertakan sebagai gambar pada
-kolom Foto Kunjungan, nomor telepon disimpan sebagai teks agar angka nol awal tetap ada,
-dan koordinat disimpan sebagai angka. Ekspor diproses di browser menggunakan ExcelJS.
+kolom Foto Kunjungan. Koordinat disimpan sebagai angka. Ekspor diproses di browser menggunakan ExcelJS.
 Data kunjungan disimpan di database laptop untuk akun yang sedang masuk.
 
 Kolom pilihan pada **Catat kunjungan** menampilkan semua opsi saat kolom atau tombol
@@ -147,7 +148,7 @@ Titik menggunakan koordinat yang tersimpan pada toko. Toko dengan koordinat koso
 tidak valid, atau `0,0` tetap bisa dipilih dari daftar pada tampilan peta untuk mengambil
 lokasi melalui **Catat kunjungan**, tetapi tidak diberi titik perkiraan.
 
-Klik titik atau nama toko untuk melihat alamat, PIC, nomor telepon, area, Produk/LJK,
+Klik titik atau nama toko untuk melihat alamat, PIC, area, Produk/LJK,
 status dan penyedia Agen/QRIS/EDC, potensi, hasil prospek, follow up, tindak lanjut, catatan, dan foto kunjungan yang sudah
 diisi. Foto bisa diperbesar, dan catatan bisa diedit dari tampilan peta. Perubahan data
 tersimpan langsung memperbarui titik dan informasinya; perubahan status menjadi
@@ -183,15 +184,15 @@ sebagai perlu tindak lanjut. Catatan tanpa rencana tindak lanjut dan hasil penol
 masuk tidak ada tindak lanjut. Informasi yang belum cukup masuk **Belum ditentukan**.
 Aturan lengkap dapat dibuka dari bagian **Aturan perhitungan laporan**.
 
-Insight menghitung hasil kunjungan, kategori terbanyak, persebaran area, ketersediaan
-nomor telepon untuk tindak lanjut, dan data yang belum lengkap. Angka mengikuti filter;
+Insight menghitung hasil kunjungan, kategori terbanyak, persebaran area,
+dan data yang belum lengkap. Angka mengikuti filter;
 tidak ada klaim tren atau perbandingan periode karena tanggal kunjungan tidak dicatat.
 Toko tanpa koordinat valid tetap masuk grafik dan tabel, tetapi tidak diberi titik peta.
 Warna titik menunjukkan status tindak lanjut; klik titik untuk melihat dan mengedit
 catatan. Setiap catatan dihitung sekali per daftar, termasuk jika toko yang sama ada
 di beberapa daftar.
 
-Ekspor memakai format Excel 19 kolom yang sudah digunakan, dengan hanya catatan
+Ekspor memakai format Excel 18 kolom, dengan hanya catatan
 kunjungan yang sesuai filter. Grafik dan insight dibuat langsung di aplikasi web;
 tidak membutuhkan Power BI Desktop maupun publikasi report Power BI.
 

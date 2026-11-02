@@ -18,7 +18,6 @@ const key = (value: string) => value.normalize('NFKC').trim().toLocaleLowerCase(
 const aliases: Partial<Record<Header, string[]>> = {
   'Nama Usaha': ['Nama Toko', 'Nama Merchant'], kategori: ['Kategori Usaha', 'Jenis Usaha', 'Kategori Toko'],
   Alamat: ['Alamat Toko', 'Alamat Usaha'], 'Nama PIC': ['PIC', 'Penanggung Jawab'],
-  'No telp': ['No Telepon', 'Nomor Telepon', 'No HP', 'Telepon', 'Nomor HP', 'WhatsApp'],
   Gmaps: ['Google Maps', 'Link Gmaps', 'Link Maps', 'URL Google Maps'],
   LJK: ['Lembaga Jasa Keuangan', 'Penyedia'], 'Follow up': ['Catatan Follow Up'],
   'Tindak Lanjut': ['Tindaklanjut'], 'Foto Kunjungan': ['Foto', 'Dokumentasi Kunjungan'],
@@ -116,10 +115,6 @@ export async function readAgentVisitExcel(bytes: ArrayBuffer, selectedSheets?: s
           return fail(`kolom ${label} berisi ${cell.text}. Perbaiki nilainya di Excel.`);
         let text = cell.text.trim();
         if (label === 'Gmaps') text = cell.hyperlink || cell.formula?.match(/^HYPERLINK\(\s*"([^"]+)"/i)?.[1] || text;
-        if (label === 'No telp' && typeof cell.value === 'number' && Number.isInteger(cell.value)) {
-          text = cell.value.toFixed(0);
-          if (/^0{2,}$/.test(cell.numFmt)) text = text.padStart(cell.numFmt.length, '0');
-        }
         if (text.length > (label === 'Nama Usaha' || label === 'Area Kunjungan' ? 1000 : 65536)) fail(`isian ${label} terlalu panjang.`);
         return text;
       };
@@ -147,7 +142,7 @@ export async function readAgentVisitExcel(bytes: ArrayBuffer, selectedSheets?: s
       const product = value('Produk'), financialInstitutions = value('LJK');
       const store: Visit = {
         id: '', visitId: '', name, address: value('Alamat'), category: value('kategori'),
-        pic: value('Nama PIC'), phone: value('No telp'), url: value('Gmaps'),
+        pic: value('Nama PIC'), url: value('Gmaps'),
         product, financialInstitutions, ...paymentDetails(product, financialInstitutions),
         potential: value('Potensi'), followUpNotes: value('Follow up'), notes: value('Catatan'),
         followUp: value('Tindak Lanjut'), prospectResult: value('Hasil Prospek'), businessId: value('ID Usaha'),
