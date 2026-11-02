@@ -7,7 +7,7 @@ Repository GitHub harus dapat dibaca VPS; repository saat ini bersifat publik.
 ## Alur deployment
 
 1. Ambil commit `main` terbaru. Tolak deployment jika source di VPS memiliki perubahan tracked yang belum disimpan.
-2. Ekstrak commit ke folder rilis terpisah, jalankan `npm ci` dan `npm run build`.
+2. Ekstrak commit ke folder rilis terpisah, jalankan `npm ci` dan `npm run build` menggunakan lokasi database sementara. Sambungkan data produksi setelah build selesai.
 3. Periksa Chromium, model TensorFlow, halaman login, dan API sesi. Pemeriksaan kandidat memakai database sementara.
 4. Backup SQLite produksi, ganti rilis aktif, lalu restart `bni-webapp.service`.
 5. Pastikan proses berasal dari rilis baru dan aplikasi merespons. Jika gagal, jalankan kembali rilis sebelumnya.

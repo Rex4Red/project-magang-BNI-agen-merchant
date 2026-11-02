@@ -96,15 +96,29 @@ class Deployer:
         webapp = release / "webapp"
         if (webapp / "data").exists() or (webapp / ".env.local").exists():
             raise RuntimeError("Data and local configuration must not be tracked in Git")
-        (webapp / "data").symlink_to(self.config["data_dir"], target_is_directory=True)
-        (webapp / ".env.local").symlink_to(self.config["env_file"])
+        (webapp / "data").mkdir()
+        shutil.copyfile(self.config["env_file"], webapp / ".env.local")
+        (webapp / ".env.local").chmod(0o600)
         return release
 
     def build(self, release):
         webapp = release / "webapp"
-        self.command([self.node, "--check", webapp / "scripts/database-maintenance.mjs"])
-        self.command(["npm", "ci", "--include=dev", "--no-audit", "--no-fund"], cwd=webapp)
-        self.command(["npm", "run", "build"], cwd=webapp)
+        env = self.env.copy()
+        env["BNI_DATABASE_PATH"] = str(webapp / ".build.sqlite")
+        try:
+            self.command([self.node, "--check", webapp / "scripts/database-maintenance.mjs"])
+            self.command(["npm", "ci", "--include=dev", "--no-audit", "--no-fund"], cwd=webapp, env=env)
+            self.command(["npm", "run", "build"], cwd=webapp, env=env)
+        finally:
+            for path in webapp.glob(".build.sqlite*"):
+                path.unlink()
+
+    def share(self, release):
+        webapp = release / "webapp"
+        (webapp / "data").rmdir()
+        (webapp / "data").symlink_to(self.config["data_dir"], target_is_directory=True)
+        (webapp / ".env.local").unlink()
+        (webapp / ".env.local").symlink_to(self.config["env_file"])
 
     @staticmethod
     def health(port):
@@ -210,6 +224,7 @@ class Deployer:
             print(f"Building {sha}", flush=True)
             release = self.prepare(sha)
             self.build(release)
+            self.share(release)
             self.probe(release)
             self.backup(previous)
             switched = True

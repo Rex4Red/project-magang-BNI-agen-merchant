@@ -56,6 +56,7 @@ def main():
     if not deployer.status_file.exists():
         sha = deployer.command(["git", "rev-parse", "HEAD"], capture=True)
         release = deployer.prepare(sha)
+        deployer.share(release)
         for name in ("node_modules", ".next"):
             (release / "webapp" / name).symlink_to(repo / "webapp" / name, target_is_directory=True)
         deployer.switch(release)

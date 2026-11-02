@@ -20,6 +20,8 @@ class SimulatedRuntime(Deployer):
 
     def build(self, release):
         self.builds += 1
+        if (release / "webapp/data").is_symlink() or (release / "webapp/.env.local").is_symlink():
+            raise AssertionError("Build input must stay inside the release's filesystem root")
         if self.fail_build:
             raise RuntimeError("Simulated compiler failure")
         (release / "webapp/.next").mkdir()
