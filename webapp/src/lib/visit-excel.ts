@@ -38,7 +38,7 @@ export async function createVisitWorkbook(lists: VisitList[]) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'BNI Canvasing';
   const usedNames = new Set<string>();
-  const widths = [6, 28, 24, 35, 22, 28, 20, 28, 22, 36, 45, 28, 25, 40, 16, 16, 25, 18];
+  const widths = [6, 28, 24, 35, 22, 28, 20, 28, 22, 36, 45, 28, 25, 40, 16, 16, 25, 18, 28, 22, 18, 18];
   if (lists.some(list => list.locked)) throw new Error("Buka daftar terkunci sebelum mengekspor.");
   for (const list of lists) {
     const sheet = workbook.addWorksheet(sheetName(list.area || list.name, usedNames));
@@ -59,7 +59,7 @@ export async function createVisitWorkbook(lists: VisitList[]) {
         index + 1, store.name || '', store.category ? displayCategory(store) : '', displayAddress(store.address), store.pic || '', store.url || '',
         visitProduct(store), visitInstitutions(store), store.potential || '', store.followUpNotes || '', store.notes || '', store.followUp || '',
         null, store.prospectResult || '', coordinates ? store.lat : null, coordinates ? store.lng : null,
-        store.visitArea ?? list.area, store.businessId || '',
+        store.visitArea ?? list.area, store.businessId || '', store.visitedAt || '', store.status === 'visited' ? 'Sudah dikunjungi' : 'Belum dikunjungi', store.kurStatus || 'unknown', store.bwuStatus || 'unknown',
       ]);
       row.height = Math.min(409, Math.max(75, Math.ceil(Math.max(store.notes?.length || 0, store.followUpNotes?.length || 0, store.followUp?.length || 0, store.prospectResult?.length || 0) / 40) * 15));
       row.eachCell({ includeEmpty: true }, cell => {
@@ -100,12 +100,13 @@ export async function createVisitWorkbook(lists: VisitList[]) {
 }
 
 export async function downloadVisitExcel(lists: VisitList[], workspace: 'agen' | 'merchant') {
+  void workspace;
   const workbook = await createVisitWorkbook(lists);
   const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
   const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const anchor = document.createElement('a');
   const label = (lists.length === 1 ? lists[0].name : 'Semua_daftar').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').slice(0, 100);
-  anchor.href = url; anchor.download = `${workspace}_${label}.xlsx`;
+  anchor.href = url; anchor.download = `BNI_${label}.xlsx`;
   document.body.appendChild(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

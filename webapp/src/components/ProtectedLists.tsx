@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useVisitLists, unlockVisitList, lockVisitList } from "@/lib/canvasing";
 import { useSession } from "@/lib/session";
+import AdminListManager from "./AdminListManager";
 import { Icon } from "./Icon";
 import styles from "./ProtectedLists.module.css";
 
@@ -70,7 +71,8 @@ export function ListAccessProvider({ children }: { children: ReactNode }) {
 export default function ProtectedLists() {
   const { lists } = useVisitLists(), { user } = useSession(), { showManager } = useListAccess();
   const protectedLists = lists.filter(list => list.protected);
-  if (!protectedLists.length || user?.role === "admin") return null;
+  if (user?.role === "admin") return <AdminListManager />;
+  if (!protectedLists.length) return null;
   const locked = protectedLists.filter(list => list.locked).length;
   return <button type="button" className={styles.trigger} onClick={showManager} aria-label={`Akses daftar, ${locked} terkunci`} title="Kelola akses daftar berpassword"><Icon name="lock" /><span>Akses daftar</span>{locked > 0 && <small>{locked}</small>}</button>;
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { authenticatedUser, DataError } from "@/lib/server/database";
-import { readLists, visitCommand } from "@/lib/server/visit-store";
+import { sameStore } from "@/lib/store-identity";
+import { readLists, visitCommand, normalizeVisit } from "@/lib/server/visit-store";
 import { accountFor, protectedSnapshot, requireListAccess, unlockList, lockList, listAllowed } from "@/lib/server/list-access";
 import { resolveGoogleMapsCoordinates } from "@/lib/server/maps-coordinates";
 import { SESSION_COOKIE, NO_STORE, apiError, bodyJson, checkWriteRequest } from "@/lib/server/request";
@@ -32,8 +33,19 @@ export async function POST(request: NextRequest) {
     if (["import", "import-excel", "import-agent-excel"].includes(String(body.action)) &&
         readLists(account).some(list => !listAllowed(user, token, list.id)))
       throw new DataError("Buka semua daftar terkunci sebelum mengimpor agar data terlindungi tidak berubah.", 403);
+    if (["manage-list", "delete-list"].includes(String(body.action)) && user.role !== "admin")
+      throw new DataError("Hanya admin yang dapat mengelola nama, password, dan penghapusan daftar.", 403);
+    if (body.action === "import") throw new DataError("Migrasi data browser lama sudah dinonaktifkan untuk Sistem Canvasing BNI.", 410);
     let result;
-    if (body.action === "unlock-list") { unlockList(user, token, body.listId, body.password); result = {}; }
+    if (body.action === "check-duplicates") {
+      if (!Array.isArray(body.stores) || body.stores.length > 10000) throw new DataError("Data pencarian tidak sesuai.");
+      const lists = readLists(account);
+      result = { matches: body.stores.map(raw => {
+        const store = normalizeVisit(raw);
+        return { id: store.id, lists: lists.filter(list => list.stores.some(other => sameStore(store, other))).map(list => list.name) };
+      }).filter(match => match.lists.length) };
+    }
+    else if (body.action === "unlock-list") { unlockList(user, token, body.listId, body.password); result = {}; }
     else if (body.action === "lock-list") { lockList(user, token, body.listId); result = {}; }
     else if (body.action === 'resolve-location') {
       const store = readLists(account).find(list => list.id === body.listId)?.stores.find(store => store.visitId === body.visitId);

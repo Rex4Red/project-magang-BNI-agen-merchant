@@ -1,5 +1,6 @@
+import { sameStore } from "../store-identity";
 import { createHash, randomUUID, randomBytes, scryptSync } from "node:crypto";
-import type { Prospect, Visit, VisitList } from "../visit-types";
+import type { Visit, VisitList } from "../visit-types";
 import { database, DataError, transaction, type DatabaseSync } from "./database";
 
 function object(value: unknown): Record<string, unknown> {
@@ -42,7 +43,7 @@ export function normalizeVisit(value: unknown): Visit {
   for (const field of ["pic", "businessId", "product", "financialInstitutions", "potential", "followUpNotes",
     "agentProvider", "qrisProvider", "followUp", "prospectResult", "visitArea", "visitedAt", "updatedAt", "locationCapturedAt"] as const)
     if (raw[field] !== undefined) store[field] = text(raw[field]);
-  for (const field of ["agentStatus", "qrisStatus", "edcStatus"] as const) {
+  for (const field of ["agentStatus", "qrisStatus", "edcStatus", "kurStatus", "bwuStatus"] as const) {
     if (raw[field] === undefined) continue;
     if (!["unknown", "yes", "no"].includes(String(raw[field]))) throw new DataError("Status produk tidak sesuai.");
     store[field] = raw[field] as "unknown" | "yes" | "no";
@@ -54,6 +55,8 @@ export function normalizeVisit(value: unknown): Visit {
     if (store.visitPhotos.some(photo => !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=\r\n]+$/.test(photo)))
       throw new DataError("Format foto kunjungan tidak dapat dibaca.");
   }
+  for (const field of ["visitedAt", "updatedAt", "locationCapturedAt"] as const)
+    if (store[field] && !Number.isFinite(Date.parse(store[field]!))) throw new DataError("Waktu kunjungan tidak valid.");
   if (raw.locationAccuracy !== undefined) store.locationAccuracy = numeric(raw.locationAccuracy);
   if (raw.classification !== undefined) {
     const classification = object(raw.classification);
@@ -114,7 +117,7 @@ export function version(username: string) {
   };
 }
 export function visitSnapshot(username: string) { return { ...version(username), lists: readLists(username) }; }
-const identity = (store: Prospect) => `${store.name.trim().toLowerCase()}|${store.lat.toFixed(6)}|${store.lng.toFixed(6)}|${store.lat || store.lng ? "" : store.address.trim().toLowerCase()}`;
+
 function allocateBusinessId(db: DatabaseSync, username: string, store: Visit) {
   const ids = db.prepare("SELECT business_id FROM visits WHERE username=?").all(username).map(row => String(row.business_id || ""));
   if (store.businessId && !ids.includes(store.businessId)) return;
@@ -183,14 +186,14 @@ function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now
     const stores = raw.stores.map(value => {
       const store = normalizeVisit(value);
       if (!store.name.trim()) throw new DataError("Nama usaha wajib diisi.");
-      store.id = randomUUID(); store.visitId = randomUUID(); store.status = "visited";
+      store.id = randomUUID(); store.visitId = randomUUID();
       store.visitArea = agent ? area : store.visitArea?.trim() || area; store.updatedAt = now;
       return store;
     });
     return { name, area, stores };
   });
-  const seen = new Set(db.prepare("SELECT data_json FROM visits WHERE username=?").all(username)
-    .map(row => identity(JSON.parse(String(row.data_json)))));
+  const seen = db.prepare("SELECT data_json FROM visits WHERE username=?").all(username)
+    .map(row => JSON.parse(String(row.data_json)) as Visit);
   const areaKey = (area: string) => area.normalize('NFKC').trim().toLocaleLowerCase('id-ID').replace(/\s+/g, ' ');
   const importedAreas = new Map<string, { id: string; area: string }>();
   if (agent) {
@@ -201,9 +204,8 @@ function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now
   const updatedLists = new Set<string>(), listIds = new Set<string>();
   for (const group of groups) {
     const stores = group.stores.filter(store => {
-      const key = identity(store);
-      if (seen.has(key)) { skipped++; return false; }
-      seen.add(key); return true;
+      if (seen.some(other => sameStore(store, other))) { skipped++; return false; }
+      seen.push(store); return true;
     });
     if (!stores.length) continue;
     const existing = agent ? importedAreas.get(areaKey(group.area)) : undefined;
@@ -213,7 +215,7 @@ function importExcel(db: DatabaseSync, username: string, rawGroups: unknown, now
       listId = randomUUID();
       db.prepare("INSERT INTO visit_lists VALUES(?,?,?,?,?,?,?)")
         .run(username, listId, agent ? group.area : group.name, group.area,
-          JSON.stringify({ mode: "area", selection: agent ? "excel" : "manual" }), now, now);
+          JSON.stringify({ mode: "area", selection: agent || username === "canvaser" ? "excel" : "manual" }), now, now);
       createdLists++;
       if (agent) importedAreas.set(areaKey(group.area), { id: listId, area: group.area });
     } else {
@@ -244,6 +246,25 @@ export function visitCommand(username: string, body: Record<string, unknown>) {
     if (body.action === "import") result = importLegacy(db, username, body.legacyRaw);
     else if (body.action === "import-excel") result = importExcel(db, username, body.groups, now);
     else if (body.action === "import-agent-excel") result = importExcel(db, username, body.groups, now, true);
+    else if (body.action === "manage-list" || body.action === "delete-list") {
+      const listId = id(body.listId); ensureList(db, username, listId);
+      const old = db.prepare("SELECT updated_at FROM visit_lists WHERE username=? AND id=?").get(username, listId)!;
+      if (body.expectedUpdatedAt !== old.updated_at) throw new DataError("Daftar berubah di perangkat lain. Buka kembali pengelolaan daftar.", 409);
+      if (body.action === "delete-list") {
+        db.prepare("DELETE FROM deleted_visits WHERE username=? AND list_id=?").run(username, listId);
+        db.prepare("DELETE FROM visit_lists WHERE username=? AND id=?").run(username, listId);
+      } else {
+        const name = text(body.name, 1000).trim();
+        if (!name) throw new DataError("Nama daftar wajib diisi.");
+        if (body.password !== undefined) {
+          if (body.password !== "" && (typeof body.password !== "string" || body.password.length < 6 || body.password.length > 200)) throw new DataError("Password daftar harus 6–200 karakter.");
+          db.prepare("DELETE FROM list_grants WHERE username=? AND list_id=?").run(username, listId);
+          db.prepare("DELETE FROM list_passwords WHERE username=? AND list_id=?").run(username, listId);
+          protectList(username, listId, body.password);
+        }
+        db.prepare("UPDATE visit_lists SET name=?,updated_at=? WHERE username=? AND id=?").run(name, now, username, listId);
+      }
+    }
     else if (body.action === "save-list") {
       const input = object(body.input);
       if (!Array.isArray(input.stores) || !input.stores.length || input.stores.length > 10000) throw new DataError("Pilih minimal satu toko.");
@@ -255,26 +276,37 @@ export function visitCommand(username: string, body: Record<string, unknown>) {
         db.prepare("INSERT INTO visit_lists VALUES(?,?,?,?,?,?,?)").run(username, listId, name, area, JSON.stringify(source(input.source)), now, now);
         protectList(username, listId, input.password);
       }
-      const seen = new Set(db.prepare("SELECT data_json FROM visits WHERE username=? AND list_id=?").all(username, listId).map(row => identity(JSON.parse(String(row.data_json)))));
+      const seen = readLists(username).flatMap(list => list.stores.map(store => ({ store, listName: list.name })));
+      const duplicateLists = new Set<string>();
       let added = 0;
       for (const rawStore of input.stores) {
         const store = normalizeVisit(rawStore);
-        if (seen.has(identity(store))) continue;
-        seen.add(identity(store)); store.visitId = randomUUID(); store.status = "planned"; store.notes = ""; store.updatedAt = now;
+        const existing = seen.find(other => sameStore(store, other.store));
+        if (existing) { duplicateLists.add(existing.listName); continue; }
+        seen.push({ store, listName: name }); store.visitId = randomUUID(); store.status = "planned"; store.notes = ""; store.updatedAt = now;
+        delete store.visitedAt;
         insertVisit(db, username, listId, store); added++;
       }
+      if (!added && !input.listId) throw new DataError(`Semua toko sudah tersimpan di daftar: ${[...duplicateLists].join(", ")}. Tidak ada daftar baru dibuat.`, 409);
       db.prepare("UPDATE visit_lists SET updated_at=? WHERE username=? AND id=?").run(now, username, listId);
       const list = db.prepare("SELECT name FROM visit_lists WHERE username=? AND id=?").get(username, listId)!;
-      result = { id: listId, name: String(list.name), added, skipped: input.stores.length - added };
+      result = { id: listId, name: String(list.name), added, skipped: input.stores.length - added, duplicateLists: [...duplicateLists] };
     } else if (body.action === "update-visit") {
       const listId = id(body.listId), visitId = id(body.visitId);
       const old = existingVisit(db, username, listId, visitId); checkRevision(old, body.expectedUpdatedAt);
       const store = normalizeVisit({ ...old, ...object(body.patch), id: old.id, visitId: old.visitId, businessId: old.businessId, updatedAt: now });
+      store.visitedAt = old.visitedAt || (body.recordVisit === true && store.status === "visited" ? now : undefined);
+      if (body.recordVisit === true && !store.name.trim()) throw new DataError("Nama usaha wajib diisi.");
       db.prepare("UPDATE visits SET data_json=? WHERE username=? AND list_id=? AND visit_id=?").run(JSON.stringify(store), username, listId, visitId);
       db.prepare("UPDATE visit_lists SET updated_at=? WHERE username=? AND id=?").run(now, username, listId);
     } else if (body.action === "add-manual") {
       const listId = id(body.listId); ensureList(db, username, listId);
-      const store = normalizeVisit(body.visit); store.id = randomUUID(); store.visitId = randomUUID(); store.updatedAt = now;
+      const store = normalizeVisit(body.visit);
+      if (!store.name.trim()) throw new DataError("Nama usaha wajib diisi.");
+      const duplicate = readLists(username).find(list => list.stores.some(other => sameStore(store, other)));
+      if (duplicate) throw new DataError(`Toko sudah tersimpan di daftar “${duplicate.name}”.`, 409);
+      store.id = randomUUID(); store.visitId = randomUUID(); store.updatedAt = now;
+      store.visitedAt = store.status === "visited" ? now : undefined;
       insertVisit(db, username, listId, store);
       db.prepare("UPDATE visit_lists SET updated_at=? WHERE username=? AND id=?").run(now, username, listId);
     } else if (body.action === "delete-visit") {

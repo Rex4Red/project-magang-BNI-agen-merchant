@@ -44,6 +44,7 @@ class SqlJsDatabaseSync implements DatabaseSync {
     this.filename = filename;
     const buffer = existsSync(filename) ? readFileSync(filename) : undefined;
     this.db = new SQL.Database(buffer);
+    this.db.exec("PRAGMA foreign_keys = ON");
   }
 
   private save() {
@@ -52,6 +53,8 @@ class SqlJsDatabaseSync implements DatabaseSync {
       return;
     }
     const data = this.db.export();
+    // sql.js export reopens the connection and resets connection-level pragmas.
+    this.db.exec("PRAGMA foreign_keys = ON");
     writeFileSync(this.filename, Buffer.from(data));
   }
 
@@ -130,10 +133,8 @@ class SqlJsDatabaseSync implements DatabaseSync {
 }
 
 const accounts = [
-  ["admin", "admin123", "Admin BNI", "agen"],
-  ["canvaser", "canvaser123", "Canvaser Agen", "agen"],
-  ["agen", "agen123", "Canvaser Agen", "agen"],
-  ["merchant", "merchant123", "Canvaser Merchant", "merchant"],
+  ["admin", "admin123", "Admin BNI", "merchant"],
+  ["canvaser", "canvaser123", "Canvaser BNI", "merchant"],
 ] as const;
 
 const globalDb = globalThis as typeof globalThis & { canvasDb?: DatabaseSync };
@@ -211,7 +212,10 @@ export function database(): DatabaseSync {
 
   db.prepare("INSERT OR IGNORE INTO meta(key,value) VALUES('database_id',?)").run(randomUUID());
   for (const [username, password, name, workspace] of accounts) {
-    if (db.prepare("SELECT username FROM accounts WHERE username=?").get(username)) continue;
+    if (db.prepare("SELECT username FROM accounts WHERE username=?").get(username)) {
+      db.prepare("UPDATE accounts SET name=?,workspace=? WHERE username=?").run(name, workspace, username);
+      continue;
+    }
     const salt = randomBytes(16).toString("hex");
     const hash = scryptSync(password, salt, 64).toString("hex");
     db.prepare("INSERT OR IGNORE INTO accounts(username,name,workspace,salt,password_hash) VALUES(?,?,?,?,?)")
@@ -258,7 +262,7 @@ function sessionUser(row: Record<string, unknown>): Session {
     username: String(row.username),
     name: String(row.name),
     role: row.username === "admin" ? "admin" : String(row.workspace),
-    workspace: row.workspace === "merchant" ? "merchant" : "agen",
+    workspace: "merchant",
   };
 }
 
@@ -274,7 +278,7 @@ export function login(username: string, password: string, client: string) {
     throw new DataError("Terlalu banyak percobaan login. Coba lagi dalam 10 menit.", 429);
   }
 
-  const account = db.prepare("SELECT * FROM accounts WHERE username=?").get(username);
+  const account = accounts.some(([name]) => name === username) ? db.prepare("SELECT * FROM accounts WHERE username=?").get(username) : undefined;
   const salt = account ? String(account.salt) : "unregistered-account";
   const candidate = scryptSync(password, salt, 64);
   const correct = account && timingSafeEqual(candidate, Buffer.from(String(account.password_hash), "hex"));
@@ -297,12 +301,11 @@ export function authenticatedUser(token?: string): Session | null {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const row = database().prepare(`SELECT a.* FROM sessions s JOIN accounts a ON a.username=s.username
     WHERE s.token_hash=? AND s.expires_at>?`).get(digest(token), Date.now());
-  if (!row) return null;
+  if (!row || !accounts.some(([name]) => name === row.username)) return null;
   const user = sessionUser(row);
   if (user.role === "admin") {
-    const selected = database().prepare("SELECT a.* FROM admin_workspaces w JOIN accounts a ON a.username=w.account WHERE w.token_hash=?").get(digest(token));
-    user.dataAccount = selected ? String(selected.username) : "agen";
-    user.workspace = selected?.workspace === "merchant" ? "merchant" : "agen";
+    user.dataAccount = "canvaser";
+    user.workspace = "merchant";
   }
   return user;
 }
@@ -310,7 +313,7 @@ export function authenticatedUser(token?: string): Session | null {
 export function selectAdminAccount(token: string | undefined, account: unknown) {
   const user = authenticatedUser(token);
   if (user?.role !== "admin" || !token) throw new DataError("Hanya admin yang dapat berpindah akun.", 403);
-  if (typeof account !== "string" || !database().prepare("SELECT username FROM accounts WHERE username=?").get(account))
+  if (account !== "canvaser")
     throw new DataError("Akun tidak ditemukan.", 404);
   database().prepare("INSERT OR REPLACE INTO admin_workspaces VALUES(?,?)").run(digest(token), account);
   return authenticatedUser(token);

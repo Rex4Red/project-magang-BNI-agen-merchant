@@ -794,3 +794,5 @@
     align-items: flex-start;
   }
 }
+
+.duplicateNotice { padding: 8px 10px; border-radius: 8px; color: #815109; background: #fff3d5; font-size: 12px; }

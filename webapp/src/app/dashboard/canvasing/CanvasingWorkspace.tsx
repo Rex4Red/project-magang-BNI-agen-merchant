@@ -10,12 +10,13 @@ import DeleteVisitDialog from "./DeleteVisitDialog";
 import styles from "./page.module.css";
 import { useListAccess } from "@/components/ProtectedLists";
 import { useSession } from "@/lib/session";
+import { formatVisitTime } from "@/lib/visit-time";
 import { Icon } from "@/components/Icon";
 
 const VisitedStoresMap = dynamic(() => import('./VisitedStoresMap'), {
   ssr: false, loading: () => <p role="status">Menyiapkan peta kunjungan…</p>,
 });
-const ImportAgentVisits = dynamic(() => import('./ImportAgentVisits'), { ssr: false, loading: () => <p role="status">Menyiapkan impor Excel…</p> });
+const ImportVisitData = dynamic(() => import('../reports/ImportVisitData'), { ssr: false, loading: () => <p role="status">Menyiapkan impor Excel…</p> });
 
 export default function CanvasingPage({ workspace = "agen" }: { workspace?: "agen" | "merchant" }) {
   const { openList } = useListAccess();
@@ -65,10 +66,10 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
     finally { setDeleting(false); }
   }
   return <div className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>Canvasing {workspace}</span><h1>{merchant ? "Kunjungan merchant" : "Kunjungan"}</h1><p>Kelola daftar toko dan catat hasil kunjungan.</p></div><div className={styles.headerActions}>
-      {!merchant && <button ref={importButton} type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="agent-visit-import" onClick={() => { setImporting(true); setNotice(''); }}><Icon name="clipboard" />Impor Excel</button>}
-      <Link className="btn btn-primary" href={searchLink}><Icon name="search" />{merchant ? "Cari merchant" : "Cari toko"}</Link></div></header>
-    {!merchant && importing && <div id="agent-visit-import"><ImportAgentVisits onClose={closeImport} onImported={(message, listId) => { setNotice(message); if (listId) setActiveId(listId); setView('list'); closeImport(); }} /></div>}
+    <header className={styles.header}><div><span className={styles.eyebrow}>Canvasing BNI</span><h1>Kunjungan</h1><p>Kelola daftar toko dan catat hasil kunjungan.</p></div><div className={styles.headerActions}>
+      {<button ref={importButton} type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="agent-visit-import" onClick={() => { setImporting(true); setNotice(''); }}><Icon name="clipboard" />Impor Excel</button>}
+      <Link className="btn btn-primary" href={searchLink}><Icon name="search" />Eksplorasi toko</Link></div></header>
+    {importing && <div id="agent-visit-import"><ImportVisitData onClose={closeImport} onImported={message => { setNotice(message); setView('list'); closeImport(); }} /></div>}
     <p className={styles.storageNote}>Tersimpan di database laptop untuk akun yang sedang masuk. Bisa dibuka dari perangkat lain saat server menyala.</p>
     {actionError && <p role="alert" className={styles.exportError}>{actionError}</p>}
     {notice && <p role="status" className={styles.actionNotice}>{notice}</p>}
@@ -102,10 +103,10 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
           <button className="btn btn-secondary" disabled={exporting || !!error || !active.stores.length} onClick={() => exportExcel([active])}>{exporting ? 'Menyiapkan Excel...' : 'Ekspor daftar ini'}</button>
           {lists.length > 1 && <button className="btn btn-secondary" disabled={exporting || !!error} onClick={() => exportExcel(lists.filter(list => !list.locked))}>Ekspor semua daftar</button>}
         </div>
-        {!active.locked && !active.stores.length && <div className={styles.emptyList}><h3>Daftar ini belum memiliki toko</h3><p>Tambah toko lapangan atau pilih toko dari pencarian.</p><Link className="btn btn-secondary btn-sm" href={searchLink}>{merchant ? 'Cari merchant' : 'Cari toko'}</Link></div>}
+        {!active.locked && !active.stores.length && <div className={styles.emptyList}><h3>Daftar ini belum memiliki toko</h3><p>Tambah toko lapangan atau pilih toko dari pencarian.</p><Link className="btn btn-secondary btn-sm" href={searchLink}>Eksplorasi toko</Link></div>}
         <div className={styles.stores}>{active.stores.map((item, index) => <article key={item.visitId} className={styles.store}>
           <span className={styles.number}>{String(index + 1).padStart(2, "0")}</span>
-          <div className={styles.storeInfo}><h3>{item.name || "Toko belum diberi nama"}</h3><p>{displayAddress(item.address)}</p><small>{displayCategory(item)}</small><div className={styles.badges}><span data-visited={item.status === "visited"}>{item.status === "visited" ? "Sudah dikunjungi" : "Belum dikunjungi"}</span>{!merchant && (active.source.selection === 'excel' ? item.potential && <span>Potensi: {item.potential}</span> : <span data-potential={item.classification?.label === "potensial"}>{item.classification?.label === "potensial" ? "Potensial" : "Perlu tinjau"}</span>)}</div>{item.pic && <p>PIC: {item.pic}</p>}{item.prospectResult && <p>Hasil: {item.prospectResult}</p>}{item.followUp && <p>Tindak lanjut: {item.followUp}</p>}{item.visitArea && <p>Area: {item.visitArea}</p>}{!!item.visitPhotos?.length && <p>{item.visitPhotos.length} foto kunjungan tersimpan</p>}{item.notes && <p className={styles.note}>{item.notes}</p>}</div>
+          <div className={styles.storeInfo}><h3>{item.name || "Toko belum diberi nama"}</h3><p>{displayAddress(item.address)}</p><small>{displayCategory(item)}</small><div className={styles.badges}><span data-visited={item.status === "visited"}>{item.status === "visited" ? "Sudah dikunjungi" : "Belum dikunjungi"}</span>{!merchant && (active.source.selection === 'excel' ? item.potential && <span>Potensi: {item.potential}</span> : <span data-potential={item.classification?.label === "potensial"}>{item.classification?.label === "potensial" ? "Potensial" : "Perlu tinjau"}</span>)}</div>{item.visitedAt && <p>Waktu kunjungan: {formatVisitTime(item.visitedAt)}</p>}{item.potential && <p>Potensi: {item.potential}</p>}{item.pic && <p>PIC: {item.pic}</p>}{item.prospectResult && <p>Hasil: {item.prospectResult}</p>}{item.followUp && <p>Tindak lanjut: {item.followUp}</p>}{item.visitArea && <p>Area: {item.visitArea}</p>}{!!item.visitPhotos?.length && <p>{item.visitPhotos.length} foto kunjungan tersimpan</p>}{item.notes && <p className={styles.note}>{item.notes}</p>}</div>
           <div className={styles.actions}><button className="btn btn-secondary btn-sm" onClick={() => setEditing(editing === item.visitId ? null : item.visitId)}>Catat kunjungan</button>
             <button type="button" className={`btn btn-secondary btn-sm ${styles.deleteButton}`} aria-label={`Hapus toko ${item.name || 'Toko belum diberi nama'}`} disabled={exporting || !!error} onClick={() => removeStore(item)}>Hapus toko</button>
             {isGoogleMapsLink(item.url) && <a href={item.url} target="_blank" rel="noopener noreferrer">Google Maps ↗</a>}</div>

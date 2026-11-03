@@ -1,4 +1,4 @@
-param([switch]$SkipBuild, [ValidateRange(1024, 65535)][int]$Port = 3001)
+﻿param([switch]$SkipBuild, [ValidateRange(1024, 65535)][int]$Port = 3001)
 $ErrorActionPreference = 'Stop'
 $projectDir = $PSScriptRoot
 $appDir = Join-Path $projectDir 'webapp'
@@ -41,16 +41,6 @@ $managed = @()
 try {
     $nodePath = (Get-Command node.exe).Source
     $nextPath = Join-Path $appDir 'node_modules/next/dist/bin/next'
-    $server = Start-Process -FilePath $nodePath -ArgumentList @('"' + $nextPath + '"', 'start', '-H', '127.0.0.1', '-p', $Port) -WorkingDirectory $appDir -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'web.out.log') -RedirectStandardError (Join-Path $runtimeDir 'web.err.log')
-    $managed += $server
-    $ready = $false
-    for ($i = 0; $i -lt 30; $i++) {
-        if ($server.HasExited) { throw 'Server berhenti. Periksa .online-runtime/web.err.log.' }
-        try { $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port" -UseBasicParsing -TimeoutSec 2; $ready = $response.StatusCode -eq 200 } catch { }
-        if ($ready) { break }
-        Start-Sleep -Milliseconds 500
-    }
-    if (-not $ready) { throw 'Server lokal belum siap.' }
     $tunnelLog = Join-Path $runtimeDir 'tunnel.err.log'
     $tunnel = Start-Process -FilePath $cloudflaredPath -ArgumentList @('tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', "http://127.0.0.1:$Port") -WorkingDirectory $projectDir -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'tunnel.out.log') -RedirectStandardError $tunnelLog
     $managed += $tunnel
@@ -62,6 +52,23 @@ try {
         Start-Sleep -Milliseconds 500
     }
     if (-not $publicUrl) { throw 'Tautan publik belum tersedia. Periksa koneksi internet dan log tunnel.' }
+    $previousAppOrigin = $env:BNI_APP_ORIGIN
+    try {
+        # Next.js uses the local origin internally; writes must trust this tunnel URL.
+        $env:BNI_APP_ORIGIN = $publicUrl
+    $server = Start-Process -FilePath $nodePath -ArgumentList @('"' + $nextPath + '"', 'start', '-H', '127.0.0.1', '-p', $Port) -WorkingDirectory $appDir -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtimeDir 'web.out.log') -RedirectStandardError (Join-Path $runtimeDir 'web.err.log')
+    } finally {
+        $env:BNI_APP_ORIGIN = $previousAppOrigin
+    }
+    $managed += $server
+    $ready = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        if ($server.HasExited) { throw 'Server berhenti. Periksa .online-runtime/web.err.log.' }
+        try { $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port" -UseBasicParsing -TimeoutSec 2; $ready = $response.StatusCode -eq 200 } catch { }
+        if ($ready) { break }
+        Start-Sleep -Milliseconds 500
+    }
+    if (-not $ready) { throw 'Server lokal belum siap.' }
     @{ url = $publicUrl; processes = @($managed | ForEach-Object { @{ id = $_.Id; started = $_.StartTime.ToUniversalTime().ToString('o') } }) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $statePath
     $publicUrl | Set-Content -LiteralPath (Join-Path $runtimeDir 'public-url.txt')
     Write-Host "Tautan publik: $publicUrl"

@@ -20,7 +20,7 @@ const server = spawn(process.execPath, [path.join(cwd, 'node_modules/next/dist/b
 });
 server.stdout.on('data', x => { logs += x; }); server.stderr.on('data', x => { logs += x; });
 const exited = once(server, 'exit');
-async function request(url, { cookie = '', account = 'merchant', body, method = body ? 'POST' : 'GET' } = {}) {
+async function request(url, { cookie = '', account = 'canvaser', body, method = body ? 'POST' : 'GET' } = {}) {
   const response = await fetch(base + url, { method, headers: {
     'Content-Type': 'application/json', 'x-canvas-client': '1', 'x-canvas-account': account, cookie, origin: base,
   }, body: body ? JSON.stringify({ commandId: randomUUID(), ...body }) : undefined });
@@ -36,7 +36,7 @@ try {
   }
   assert.ok(ready, logs);
   const login = username => request('/api/v1/session', { body: { username, password: `${username}123` } });
-  const a = await login('merchant'), b = await login('merchant'), admin = await login('admin');
+  const a = await login('canvaser'), b = await login('canvaser'), admin = await login('admin');
   assert.equal(a.status, 200); assert.equal(admin.data.user.role, 'admin');
   assert.equal((await request('/api/v1/visits')).status, 401);
   assert.equal((await request('/api/v1/visits', { cookie: a.cookie, account: 'agen' })).status, 409);
@@ -65,19 +65,37 @@ try {
   assert.equal(store.name, 'Usaha privat');
   assert.equal((await request('/api/v1/visits', { cookie: b.cookie })).data.lists[0].locked, true);
   const updated = await request('/api/v1/visits', { cookie: a.cookie, body: { action: 'update-visit', listId, visitId: store.visitId,
-    expectedUpdatedAt: store.updatedAt, patch: { notes: 'Tercatat', status: 'visited' } } });
+    recordVisit: true, expectedUpdatedAt: store.updatedAt, patch: { notes: 'Tercatat', status: 'visited' } } });
   assert.equal(updated.status, 200);
   assert.equal(updated.data.lists[0].stores[0].notes, 'Tercatat');
   assert.equal((await request('/api/v1/visits', { cookie: a.cookie, body: { action: 'lock-list', listId } })).data.lists[0].locked, true);
-  const switched = await request('/api/v1/session', { cookie: admin.cookie, method: 'PATCH', body: { account: 'merchant' } });
+  const switched = await request('/api/v1/session', { cookie: admin.cookie, method: 'PATCH', body: { account: 'canvaser' } });
   assert.equal(switched.data.user.workspace, 'merchant');
   const monitored = await request('/api/v1/visits', { cookie: admin.cookie });
   assert.equal(monitored.data.lists[0].stores[0].notes, 'Tercatat');
   assert.equal(monitored.data.lists[0].locked, false);
   assert.ok(!JSON.stringify(monitored.data).includes('private123'));
+  const current = monitored.data.lists[0];
+  assert.ok(current.stores[0].visitedAt);
+  for (const action of ['manage-list','delete-list']) {
+    assert.equal((await request('/api/v1/visits', { cookie: b.cookie, body: { action, listId, name: 'Blocked', expectedUpdatedAt: current.updatedAt } })).status, 403);
+  }
+  const duplicates = await request('/api/v1/visits', { cookie: b.cookie, body: { action: 'check-duplicates', stores: [{ name: 'Usaha privat', lat: -7.70001, lng: 110.4 }] } });
+  assert.equal(duplicates.status, 200);
+  assert.deepEqual(duplicates.data.result.matches[0].lists, ['Daftar uji API']);
+  assert.ok(!JSON.stringify(duplicates.data.lists).includes('Usaha privat'));
+  const renamed = await request('/api/v1/visits', { cookie: admin.cookie, body: { action: 'manage-list', listId, name: 'Daftar distribusi', password: 'changed123', expectedUpdatedAt: current.updatedAt } });
+  assert.equal(renamed.status, 200);
+  assert.equal(renamed.data.lists[0].name, 'Daftar distribusi');
+  assert.equal((await request('/api/v1/visits', { cookie: a.cookie, body: { action: 'unlock-list', listId, password: 'private123' } })).status, 403);
+  assert.equal((await request('/api/v1/visits', { cookie: a.cookie, body: { action: 'unlock-list', listId, password: 'changed123' } })).status, 200);
+  const removed = await request('/api/v1/visits', { cookie: admin.cookie, body: { action: 'delete-list', listId, expectedUpdatedAt: renamed.data.lists[0].updatedAt } });
+  assert.equal(removed.status, 200);
+  assert.equal(removed.data.lists.length, 0);
+  for (const username of ['agen','merchant']) assert.equal((await login(username)).status, 401);
   await request('/api/v1/session', { cookie: a.cookie, method: 'DELETE' });
   assert.equal((await request('/api/v1/visits', { cookie: a.cookie })).status, 401);
-  console.log('PASS: HTTP login, admin switching, locked read/write/import rejection, unlock, per-device grants, editing, lock, logout.');
+  console.log('PASS: HTTP shared BNI workspace, retired logins, protected read/write, duplicate lookup, visit time, admin-only rename/password/delete, logout.');
 } finally {
   server.kill(); await exited;
   assert.ok(path.resolve(temporary).startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(temporary).startsWith('bni-access-http-'));

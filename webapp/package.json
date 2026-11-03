@@ -11,7 +11,8 @@
     "lint": "eslint",
     "test:agent-import": "node --test scripts/test-agent-excel-import.mjs",
     "test:list-access": "node --test scripts/test-list-access.mjs",
-    "test:list-access-http": "node scripts/test-list-access-http.mjs"
+    "test:list-access-http": "node scripts/test-list-access-http.mjs",
+    "db:reset": "node --env-file-if-exists=.env.local scripts/reset-canvasing.mjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",

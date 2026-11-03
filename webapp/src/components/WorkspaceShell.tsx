@@ -2,23 +2,17 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession, homeFor, signOut, switchAdminAccount } from "@/lib/session";
+import { useSession, homeFor, signOut } from "@/lib/session";
 import { Icon } from "./Icon";
 import DatabaseStatus from "./DatabaseStatus";
 import VisitDataWorkspace from "./VisitDataWorkspace";
 import ProtectedLists, { ListAccessProvider } from "./ProtectedLists";
 import styles from "@/app/dashboard/layout.module.css";
 
-const agentItems = [
-  { href: "/dashboard", label: "Ringkasan", icon: "grid" },
-  { href: "/dashboard/search", label: "Eksplorasi toko", icon: "store" },
-  { href: "/dashboard/canvasing", label: "Kunjungan", icon: "pin" },
-  { href: "/dashboard/reports", label: "Laporan", icon: "chart" },
-  { href: "/dashboard/settings", label: "Pengaturan", icon: "settings" },
-] as const;
-const merchantItems = [
-  { href: "/merchant", label: "Cari merchant", icon: "search" },
-  { href: "/merchant/canvasing", label: "Kunjungan merchant", icon: "pin" },
+const items = [
+  { href: "/merchant/summary", label: "Ringkasan", icon: "grid" },
+  { href: "/merchant", label: "Eksplorasi toko", icon: "store" },
+  { href: "/merchant/canvasing", label: "Kunjungan", icon: "pin" },
   { href: "/merchant/reports", label: "Laporan", icon: "chart" },
 ] as const;
 
@@ -28,7 +22,6 @@ export default function WorkspaceShell({ children, workspace }: { children: Reac
   const [menu, setMenu] = useState(false), [logoutError, setLogoutError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null), sidebar = useRef<HTMLElement>(null);
-  const items = workspace === "agen" ? agentItems : merchantItems;
   const currentPage = items.find(item => item.href === pathname)?.label || "Canvasing";
   useEffect(() => {
     if (ready && (!user || user.workspace !== workspace)) router.replace(user ? homeFor(user.workspace) : "/");
@@ -67,23 +60,15 @@ export default function WorkspaceShell({ children, workspace }: { children: Reac
     <aside ref={sidebar} id="workspace-navigation" className={`${styles.sidebar} ${menu ? styles.open : ""}`}>
       <a href={homeFor(workspace)} className={styles.brand} onClick={event => { event.preventDefault(); router.push(homeFor(workspace)); setMenu(false); }}>
         <Image src="/bni-logo.svg" alt="BNI" width={200} height={58} priority />
-        <div className={styles.brandTitle}><strong>{workspace === "agen" ? "agen" : "merchant"}</strong></div>
+        <div className={styles.brandTitle}><strong>Canvasing BNI</strong></div>
       </a>
-      {user.role === "admin" && <label style={{ padding: "16px", display: "grid", gap: "8px" }}>Pantau data akun
-        <select aria-label="Akun yang dipantau admin" value={user.dataAccount || "agen"} disabled={loggingOut} onChange={async event => {
-          setLoggingOut(true); setLogoutError("");
-          try { const selected = await switchAdminAccount(event.target.value); router.push(homeFor(selected.workspace)); }
-          catch (error) { setLogoutError(error instanceof Error ? error.message : "Gagal mengganti akun."); }
-          finally { setLoggingOut(false); }
-        }}><option value="agen">Agen</option><option value="merchant">Merchant</option><option value="canvaser">Canvaser (data lama)</option><option value="admin">Admin (data lama)</option></select>
-        <small>Admin dapat membuka seluruh daftar tanpa password daftar.</small>
-      </label>}
+      {user.role === "admin" && <p style={{ padding: "16px", fontSize: "13px" }}>Admin · Kelola seluruh daftar dan password melalui tombol Kelola daftar.</p>}
       <nav aria-label={`Menu ${workspace}`} className={styles.nav}>
         {items.map(item => <a key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className={pathname === item.href ? styles.active : ""}
           onClick={event => { event.preventDefault(); router.push(item.href); setMenu(false); }}><Icon name={item.icon} />{item.label}</a>)}
       </nav>
       <div className={styles.account}>
-        <div className={styles.accountIdentity}><span className={styles.avatar}>{user.name.charAt(0)}</span><span><strong>{user.name}</strong><small>{user.username} · {workspace === "agen" ? "Agen" : "Merchant"}</small></span></div>
+        <div className={styles.accountIdentity}><span className={styles.avatar}>{user.name.charAt(0)}</span><span><strong>{user.name}</strong><small>{user.username} · {user.role === "admin" ? "Admin" : "Canvaser"}</small></span></div>
         <button className={styles.logout} disabled={loggingOut} onClick={async () => {
           setLoggingOut(true); setLogoutError("");
           try { await signOut(); router.push("/"); }
@@ -99,7 +84,7 @@ export default function WorkspaceShell({ children, workspace }: { children: Reac
         <div className={styles.headerRight}><ProtectedLists /><DatabaseStatus /><span className={styles.headerAvatar} title={user.name}>{user.name.charAt(0)}</span></div>
       </header>
       <main className={styles.content}>{logoutError && <p className={styles.logoutError} role="alert">{logoutError}</p>}<VisitDataWorkspace key={`${user.username}:${user.dataAccount || user.username}`}>{children}</VisitDataWorkspace></main>
-      <footer className={styles.footer}><span>BNI · Canvasing {workspace}</span></footer>
+      <footer className={styles.footer}><span>BNI · Sistem Canvasing</span></footer>
     </div>
   </div></ListAccessProvider>;
 }

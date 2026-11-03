@@ -7,6 +7,7 @@ import { useVisitLists, displayAddress } from '@/lib/canvasing';
 import { FOLLOW_UP_STATUSES, filterReports, groupReports, reportEntries, reportInsights, reportLists, reportPercent, type FollowUpStatus } from '@/lib/visit-reports';
 import { BarChart, StatusChart } from './ReportCharts';
 import styles from './page.module.css';
+import { formatVisitTime } from "@/lib/visit-time";
 import { Icon } from '@/components/Icon';
 
 const VisitedStoresMap = dynamic(() => import('../canvasing/VisitedStoresMap'), { ssr: false, loading: () => <p role="status">Memuat peta kunjungan…</p> });
@@ -63,7 +64,7 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
       <div><h1>Laporan kunjungan</h1><p>Visualisasi dan insight dari usaha yang sudah dikunjungi.</p></div>
       <div className={styles.headerActions}>{workspace === 'agen' && <button ref={agentImportButton} type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="agent-report-import" onClick={() => { setImporting(true); setImportNotice(''); }}><Icon name="clipboard" />Impor Excel</button>}{workspace === 'merchant' && <button type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="merchant-import" onClick={() => { setImporting(true); setImportNotice(''); }}><Icon name="database" />Import Data</button>}<button type="button" className="btn btn-secondary" disabled={exporting || !!error || !filtered.length} onClick={exportExcel}><Icon name="external" />{exporting ? 'Menyiapkan Excel…' : 'Ekspor data laporan'}</button><Link className="btn btn-primary" href={visitLink}><Icon name="pin" />Buka kunjungan</Link></div>
     </header>
-    <p className={styles.sourceNote}>Otomatis diperbarui dari database laptop untuk akun {workspace} yang sedang masuk. Hanya status “Sudah dikunjungi” yang dihitung.</p>
+    <p className={styles.sourceNote}>Otomatis diperbarui dari database Sistem Canvasing BNI. Hanya status “Sudah dikunjungi” yang dihitung.</p>
     {error && <div role="alert" className={styles.error}><h2>Data laporan belum dapat dibaca</h2><p>{error}</p><Link className="btn btn-secondary" href={visitLink}>Periksa data kunjungan</Link></div>}
     {workspace === 'merchant' && importing && <div id="merchant-import" className={styles.importContainer}><ImportVisitData onClose={() => setImporting(false)} onImported={message => { setImportNotice(message); setImporting(false); resetFilters(); }} /></div>}
     {workspace === 'agen' && importing && <div id="agent-report-import" className={styles.importContainer}><ImportAgentVisits onClose={closeAgentImport} onImported={message => { setImportNotice(message); closeAgentImport(); resetFilters(); }} /></div>}
@@ -96,13 +97,13 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
           <section className={`${styles.panel} ${styles.tablePanel}`} aria-labelledby="report-data">
             <header className={styles.panelHeading}><h2 id="report-data">Data kunjungan</h2><span>{count(filtered.length)} usaha</span></header>
             <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="Tabel data kunjungan">
-              <table className={styles.table}><thead><tr><th scope="col">No</th><th scope="col">Nama usaha</th><th scope="col">Status tindak lanjut</th><th scope="col">Hasil prospek</th><th scope="col">Catatan</th><th scope="col">Detail</th></tr></thead><tbody>{shown.map((entry, index) => {
+              <table className={styles.table}><thead><tr><th scope="col">No</th><th scope="col">Nama usaha</th><th scope="col">Status tindak lanjut</th><th scope="col">Waktu kunjungan</th><th scope="col">Hasil prospek</th><th scope="col">Catatan</th><th scope="col">Detail</th></tr></thead><tbody>{shown.map((entry, index) => {
                 const status = FOLLOW_UP_STATUSES.find(status => status.key === entry.followUpStatus)!;
                 return <tr key={entry.key}>
                   <td data-label="No">{activePage * PAGE_SIZE + index + 1}</td>
                   <td className={styles.nameCell} data-label="Nama usaha"><strong>{entry.store.name || 'Toko belum diberi nama'}</strong><span>{entry.category} · {entry.area}</span><span>{displayAddress(entry.store.address) || 'Alamat belum diisi'}</span></td>
                   <td data-label="Status tindak lanjut"><span className={styles.statusText} data-status={status.key}><span className={styles.swatch} aria-hidden="true" style={{ background: status.color }} />{status.label}</span></td>
-                  <td data-label="Hasil prospek">{entry.prospect}</td>
+                  <td data-label="Waktu kunjungan">{formatVisitTime(entry.store.visitedAt)}</td><td data-label="Hasil prospek">{entry.prospect}</td>
                   <td className={styles.notesCell} data-label="Catatan">{entry.store.notes?.trim() ? entry.store.notes.length > 160 ? `${entry.store.notes.slice(0, 160)}…` : entry.store.notes : 'Belum diisi'}</td>
                   <td className={styles.actionCell} data-label="Detail"><button type="button" className="btn btn-secondary btn-sm" aria-label={`Lihat catatan ${entry.store.name || 'toko belum diberi nama'}`} onClick={() => setEditing({ listId: entry.listId, visitId: entry.store.visitId })}>Lihat catatan</button></td>
                 </tr>;

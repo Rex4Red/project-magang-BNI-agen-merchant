@@ -4,7 +4,7 @@ import { readLists, version } from "./visit-store";
 import type { Session } from "../session";
 
 const digest = (token: string) => createHash("sha256").update(token).digest("hex");
-export const accountFor = (user: Session) => user.role === "admin" ? user.dataAccount || "agen" : user.username;
+export const accountFor = (user: Session) => user.role === "admin" ? "canvaser" : user.username;
 export function listAllowed(user: Session, token: string, listId: string) {
   if (user.role === "admin") return true;
   const db = database(), account = accountFor(user);

@@ -6,11 +6,11 @@ export interface Session { username: string; name: string; role: string; workspa
 export function readSession(raw: string | null | undefined): Session | null {
   try {
     const data = JSON.parse(raw || "null");
-    if (!["admin", "canvaser", "agen", "merchant"].includes(data?.username)) return null;
-    return { ...data, workspace: data.username === "merchant" ? "merchant" : "agen" };
+    if (!["admin", "canvaser"].includes(data?.username)) return null;
+    return { ...data, workspace: "merchant" };
   } catch { return null; }
 }
-export function homeFor(workspace: Workspace) { return workspace === "merchant" ? "/merchant" : "/dashboard"; }
+export function homeFor(_workspace: Workspace) { void _workspace; return "/merchant/summary"; }
 const initial = { ready: false, user: null as Session | null, error: "" };
 let current = initial;
 let pending: Promise<void> | null = null;

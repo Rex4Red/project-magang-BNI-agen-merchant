@@ -8,7 +8,7 @@ import "leaflet/dist/leaflet.css";
 
 import { distance, pathLength, type Point } from "@/lib/road-geometry";
 import { polygonError } from "@/lib/search-polygon";
-import { displayAddress, displayCategory, saveVisitList, useVisitLists } from "@/lib/canvasing";
+import { displayAddress, displayCategory, saveVisitList, useVisitLists, findSavedStores } from "@/lib/canvasing";
 import { Icon } from "@/components/Icon";
 import {
   useMerchantSearchSession,
@@ -82,6 +82,18 @@ export default function MerchantPage() {
   const [focusRequest, setFocusRequest] = useState(0);
 
   const { lists: visitLists, error: storageError } = useVisitLists();
+
+  const [savedMatches, setSavedMatches] = useState<{ id: string; lists: string[] }[]>([]);
+  const [duplicateError, setDuplicateError] = useState("");
+  const listsVersion = visitLists.map(list => `${list.id}:${list.updatedAt}`).join("|");
+  useEffect(() => {
+    let cancelled = false;
+    if (!results.length || storageError) return;
+    findSavedStores(results).then(matches => { if (!cancelled) { setSavedMatches(matches); setDuplicateError(""); } })
+      .catch(() => { if (!cancelled) setDuplicateError("Pemeriksaan toko tersimpan belum tersedia. Duplikat tetap diperiksa saat menyimpan."); });
+    return () => { cancelled = true; };
+  }, [results, listsVersion, storageError]);
+  const savedIn = (id: string) => savedMatches.find(match => match.id === id)?.lists || [];
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<Leaflet.Map | null>(null);
@@ -375,14 +387,14 @@ export default function MerchantPage() {
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
-        <span className={styles.pageEyebrow}>Canvasing merchant</span>
-        <h1>Cari merchant</h1>
-        <p>Cari semua toko dan merchant untuk canvasing BNI berdasarkan nama daerah, area peta, atau jalur rute jalan.</p>
+        <span className={styles.pageEyebrow}>Canvasing BNI</span>
+        <h1>Eksplorasi toko</h1>
+        <p>Cari toko untuk canvasing BNI berdasarkan nama daerah, area peta, atau jalur rute jalan.</p>
       </header>
 
       {/* Mode Switcher and Controls */}
       <div className={`${styles.searchPanel} ${searchMode !== "area" ? styles.mapSearchPanel : ""}`}>
-        <div className={styles.modeSwitch} role="group" aria-label="Mode pencarian merchant">
+        <div className={styles.modeSwitch} role="group" aria-label="Mode pencarian toko">
           <button
             type="button"
             aria-pressed={searchMode === "area"}
@@ -435,7 +447,7 @@ export default function MerchantPage() {
                   type="text"
                   className={styles.searchInput}
                   placeholder="Masukkan daerah, misalnya Seturan, Malioboro, atau Sleman"
-                  aria-label="Daerah pencarian merchant"
+                  aria-label="Daerah pencarian toko"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -446,7 +458,7 @@ export default function MerchantPage() {
                 onClick={handleSearch}
                 disabled={isSearching || !query.trim()}
               >
-                {isSearching ? "Mencari..." : "Cari merchant"}
+                {isSearching ? "Mencari..." : "Eksplorasi toko"}
               </button>
             </div>
             <p className={styles.searchHint}>
@@ -514,7 +526,7 @@ export default function MerchantPage() {
               onClick={handleSearch}
               disabled={!mapReady || isSearching || !!areaError || polygon.length < 3}
             >
-              {isSearching ? "Mencari..." : drawing ? "Selesai & cari merchant" : "Cari di area ini"}
+              {isSearching ? "Mencari..." : drawing ? "Selesai & cari toko" : "Cari di area ini"}
             </button>
           </div>
         )}
@@ -622,7 +634,7 @@ export default function MerchantPage() {
               onClick={handleSearch}
               disabled={!mapReady || isSearching || !validRoute}
             >
-              {isSearching ? "Mencari..." : drawing ? "Selesai & cari merchant" : "Cari merchant di jalur ini"}
+              {isSearching ? "Mencari..." : drawing ? "Selesai & cari toko" : "Eksplorasi toko di jalur ini"}
             </button>
           </div>
         )}
@@ -652,16 +664,16 @@ export default function MerchantPage() {
 
       {saveNotice && (
         <div className={styles.saveNotice} role="status">
-          {saveNotice} <Link href="/merchant/canvasing">Buka Kunjungan merchant →</Link>
+          {saveNotice} <Link href="/merchant/canvasing">Buka Kunjungan →</Link>
         </div>
       )}
 
       {/* Save to Visit List Form */}
       {saveOpen && (
-        <section className={styles.savePanel} aria-label="Simpan daftar canvasing merchant">
+        <section className={styles.savePanel} aria-label="Simpan daftar canvasing BNI">
           <div>
-            <h2>Simpan ke daftar canvasing merchant</h2>
-            <p>{chosen.length} merchant dipilih. Daftar tersimpan di database laptop khusus akun merchant.</p>
+            <h2>Simpan ke daftar canvasing BNI</h2>
+            <p>{chosen.length} toko dipilih. Daftar tersimpan di database Sistem Canvasing BNI.</p>
           </div>
 
           <label>
@@ -684,7 +696,7 @@ export default function MerchantPage() {
                   maxLength={100}
                   value={listName}
                   onChange={(e) => setListName(e.target.value)}
-                  placeholder="Contoh: Merchant Seturan Senin"
+                  placeholder="Contoh: Canvasing Seturan Senin"
                 />
               </label>
               <label>
@@ -700,7 +712,7 @@ export default function MerchantPage() {
           )}
 
           {!targetList && <ListPasswordFields password={listPassword} confirmation={passwordConfirmation} onPassword={setListPassword} onConfirmation={setPasswordConfirmation} />}
-        {targetList && <p>Merchant ditambahkan ke daftar terpilih. Merchant yang sudah ada akan dilewati.</p>}
+        {targetList && <p>Toko ditambahkan ke daftar terpilih. Toko yang sudah tersimpan akan dilewati.</p>}
           {(saveError || storageError) && <p role="alert">{saveError || storageError}</p>}
 
           <div className={styles.saveActions}>
@@ -736,8 +748,8 @@ export default function MerchantPage() {
                     stores: results.filter((s) => chosen.includes(s.id)),
                   });
                   setSaveNotice(
-                    `${saved.added} merchant disimpan ke “${saved.name}”.${
-                      saved.skipped ? ` ${saved.skipped} duplikat dilewati.` : ""
+                    `${saved.added} toko disimpan ke “${saved.name}”.${
+                      saved.skipped ? ` ${saved.skipped} duplikat dilewati. Sudah tersimpan di: ${(saved.duplicateLists || []).join(", ")}.` : ""
                     }`
                   );
                   setSaveOpen(false);
@@ -758,7 +770,7 @@ export default function MerchantPage() {
       {/* Map & Results Layout */}
       <div className={styles.mapResultsLayout}>
         {/* Map Section */}
-        <section className={styles.mapSection} aria-label="Peta interaktif merchant">
+        <section className={styles.mapSection} aria-label="Peta interaktif toko">
           <div ref={mapContainer} className={styles.mapContainer}>
             {!mapReady && (
               <div className={styles.mapLoading}>
@@ -771,7 +783,7 @@ export default function MerchantPage() {
           <div className={styles.mapCaption}>
             <span>● Titik kontrol</span>
             <span>Garis/Area oranye: cakupan pencarian</span>
-            <span>○ Titik merchant</span>
+            <span>○ Titik toko</span>
           </div>
 
           {/* Selected Store Popup Overlay */}
@@ -779,7 +791,7 @@ export default function MerchantPage() {
             <div className={styles.storePopup}>
               <button
                 className={styles.popupClose}
-                aria-label="Tutup detail merchant"
+                aria-label="Tutup detail toko"
                 onClick={() => setSelectedStore(null)}
               >
                 <Icon name="close" />
@@ -819,11 +831,11 @@ export default function MerchantPage() {
         </section>
 
         {/* Results Section */}
-        <section className={styles.resultsList} aria-label="Hasil pencarian merchant">
+        <section className={styles.resultsList} aria-label="Hasil pencarian toko">
           {/* Loading Skeleton */}
           {isSearching && (
             <div className={styles.loadingResults}>
-              <span className={styles.loadingTitle}>Menelusuri merchant di area ini...</span>
+              <span className={styles.loadingTitle}>Menelusuri toko di area ini...</span>
               <span className={styles.loadingHint}>
                 Pencarian menelusuri toko, restoran, kafe, dan semua jenis usaha. Proses dapat memerlukan beberapa saat.
               </span>
@@ -834,24 +846,25 @@ export default function MerchantPage() {
           )}
 
           {/* Results Ready */}
+          {duplicateError && <p role="status">{duplicateError}</p>}
           {!isSearching && hasSearched && results.length > 0 && (
             <>
               <div className={styles.resultTitle}>
                 <h2>Hasil pencarian</h2>
-                <span className="badge badge-info">{results.length} merchant</span>
+                <span className="badge badge-info">{results.length} toko</span>
               </div>
 
               <div className={styles.resultStatus} role="status">
-                <Icon name="check" /> Pencarian selesai
+                <Icon name="check" /> Pencarian selesai. {savedMatches.length > 0 && `${savedMatches.length} toko sudah tersimpan di daftar lain dan akan dilewati.`}
               </div>
 
               <div className={styles.selectionBar}>
-                <span>{chosen.length} merchant dipilih</span>
+                <span>{chosen.length} toko dipilih</span>
                 <button
                   className="btn btn-secondary btn-sm"
                   disabled={!filteredResults.length}
                   onClick={() =>
-                    setChosen(Array.from(new Set([...chosen, ...filteredResults.map((s) => s.id)])))
+                    setChosen(Array.from(new Set([...chosen, ...filteredResults.filter(s => !savedIn(s.id).length).map((s) => s.id)])))
                   }
                 >
                   Pilih yang tampil
@@ -867,7 +880,7 @@ export default function MerchantPage() {
                   onClick={() => {
                     const fallbackArea =
                       searchMode === "area" ? query.trim() : searchMode === "road" ? roadName.trim() : "Area Peta";
-                    setListName(`Merchant ${fallbackArea}`);
+                    setListName(`Canvasing ${fallbackArea}`);
                     setVisitArea(fallbackArea);
                     setTargetList("");
                     setSaveError("");
@@ -916,6 +929,7 @@ export default function MerchantPage() {
                       className={styles.storeCheckbox}
                       aria-label={`Pilih ${store.name}`}
                       checked={chosen.includes(store.id)}
+                      disabled={savedIn(store.id).length > 0}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) =>
                         setChosen((cur) =>
@@ -944,6 +958,7 @@ export default function MerchantPage() {
                       </div>
 
                       <p className={styles.storeAddress}>{displayAddress(store.address)}</p>
+                      {savedIn(store.id).length > 0 && <p className={styles.duplicateNotice}>Sudah tersimpan di daftar: <strong>{savedIn(store.id).join(", ")}</strong></p>}
 
                       <div className={styles.storeMeta}>
                         {store.rating > 0 && (
@@ -985,7 +1000,7 @@ export default function MerchantPage() {
           {!isSearching && hasSearched && results.length === 0 && (
             <div className={styles.emptyResults}>
               <Icon name="search" />
-              <h3>Tidak ada merchant ditemukan</h3>
+              <h3>Tidak ada toko ditemukan</h3>
               <p>
                 Coba perbesar area pencarian, sesuaikan nama daerah, atau lebarkan jarak pencarian jalur.
               </p>
@@ -995,8 +1010,8 @@ export default function MerchantPage() {
           {!isSearching && !hasSearched && (
             <div className={styles.emptyResults}>
               <Icon name="search" />
-              <h3>Belum ada pencarian merchant</h3>
-              <p>Pilih mode pencarian di atas lalu cari untuk menampilkan semua merchant di peta dan daftar.</p>
+              <h3>Belum ada pencarian toko</h3>
+              <p>Pilih mode pencarian di atas lalu cari untuk menampilkan semua toko di peta dan daftar.</p>
             </div>
           )}
         </section>
@@ -1004,9 +1019,9 @@ export default function MerchantPage() {
 
       <div className={styles.footerSection}>
         <Link href="/merchant/canvasing" className="btn btn-secondary">
-          <Icon name="pin" /> Buka kunjungan merchant
+          <Icon name="pin" /> Buka kunjungan
         </Link>
-        <small>Daftar tersimpan di database laptop khusus akun merchant.</small>
+        <small>Daftar tersimpan di database Sistem Canvasing BNI.</small>
       </div>
     </div>
   );

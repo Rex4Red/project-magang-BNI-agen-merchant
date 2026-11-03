@@ -3,7 +3,49 @@ import type { Visit } from './visit-types';
 import { VISIT_EXCEL_HEADERS } from './visit-template';
 
 export interface ExcelVisitGroup { name: string; area: string; stores: Visit[] }
-export interface ExcelVisitPreview { groups: ExcelVisitGroup[]; total: number }
+export interface ExcelVisitPreview { groups: ExcelVisitGroup[]; total: number; warnings?: string[] }
+export type ImportHeader = typeof VISIT_EXCEL_HEADERS[number];
+export interface ImportOptions { sheetId?: number; headerRow?: number; columns?: Partial<Record<ImportHeader, number>>; defaultArea?: string; defaultStatus?: "planned" | "visited" }
+export interface ImportSheet { id: number; name: string; headerRow: number; headers: string[]; columns: Partial<Record<ImportHeader, number>> }
+const aliases: Partial<Record<ImportHeader, string[]>> = {
+  'Nama Usaha': ['nama toko', 'nama merchant', 'toko', 'merchant', 'nama', 'store name', 'business name', 'outlet'],
+  'kategori': ['jenis usaha', 'category', 'kategori usaha'], 'Alamat': ['alamat toko', 'address', 'lokasi'],
+  'Nama PIC': ['pic', 'nama pemilik', 'pemilik', 'owner', 'contact person'],
+  'Gmaps': ['google maps', 'maps', 'url', 'link maps', 'link google maps', 'tautan'],
+  'Area Kunjungan': ['area', 'daerah', 'wilayah', 'kecamatan', 'area canvasing'],
+  'Produk': ['product', 'produk bni'], 'LJK': ['bank', 'lembaga keuangan'],
+  'Potensi': ['potential', 'potensi produk'], 'Follow up': ['followup', 'catatan follow up'],
+  'Catatan': ['notes', 'keterangan'], 'Tindak Lanjut': ['tindaklanjut', 'rencana tindak lanjut'],
+  'Hasil Prospek': ['hasil', 'prospek', 'hasil kunjungan'], 'Latitude': ['lat', 'lintang'],
+  'Longitude': ['lng', 'lon', 'bujur'], 'ID Usaha': ['id toko', 'business id'],
+  'Waktu Kunjungan': ['visited at', 'visitedat', 'tanggal kunjungan', 'waktu', 'timestamp'],
+  'Status Kunjungan': ['status', 'visit status'], 'KUR': ['status kur'], 'BWU': ['status bwu'],
+};
+const headerKey = (value: string) => normalized(value).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+export function detectColumns(headers: string[]) {
+  const result: Partial<Record<ImportHeader, number>> = {};
+  for (const header of VISIT_EXCEL_HEADERS) {
+    const keys = [header, ...(aliases[header] || [])].map(headerKey);
+    const index = headers.findIndex(value => value.trim() && keys.includes(headerKey(value)));
+    if (index >= 0) result[header] = index + 1;
+  }
+  return result;
+}
+function describeSheet(sheet: ExcelJS.Worksheet, headerRow?: number): ImportSheet {
+  let chosen = headerRow || 1, bestScore = -1;
+  if (!headerRow) for (let row = 1; row <= Math.min(sheet.rowCount, 30); row++) {
+    const headers = Array.from({ length: Math.min(sheet.columnCount, 200) }, (_, i) => sheet.getRow(row).getCell(i + 1).text);
+    const map = detectColumns(headers), score = Object.keys(map).length + (map['Nama Usaha'] ? 100 : 0);
+    if (score > bestScore) { bestScore = score; chosen = row; }
+  }
+  const headers = Array.from({ length: Math.min(sheet.columnCount, 200) }, (_, i) => sheet.getRow(chosen).getCell(i + 1).text);
+  return { id: sheet.id, name: sheet.name, headerRow: chosen, headers, columns: detectColumns(headers) };
+}
+export async function inspectVisitFile(bytes: ArrayBuffer, headerRow?: number): Promise<ImportSheet[]> {
+  if (bytes.byteLength > 15 * 1024 * 1024) throw new Error('Ukuran file maksimal 15 MB.');
+  const workbook = await loadVisitWorkbook(bytes);
+  return workbook.worksheets.filter(sheet => sheet.actualRowCount).map(sheet => describeSheet(sheet, headerRow));
+}
 const normalized = (value: string) => value.trim().toLocaleLowerCase('id-ID').replace(/\s+/g, ' ');
 
 export async function loadVisitWorkbook(bytes: ArrayBuffer, readImagesSeparately = false): Promise<ExcelJS.Workbook> {
@@ -37,19 +79,22 @@ export async function loadVisitWorkbook(bytes: ArrayBuffer, readImagesSeparately
   return result;
 }
 
-export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPreview> {
+export async function readVisitExcel(bytes: ArrayBuffer, options: ImportOptions = {}): Promise<ExcelVisitPreview> {
   if (bytes.byteLength > 15 * 1024 * 1024) throw new Error('Ukuran file maksimal 15 MB.');
-  if (new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength)).join(',') !== '80,75')
-    throw new Error('File tidak dapat dibaca sebagai .xlsx. Buka di Excel lalu gunakan Simpan Sebagai .xlsx, bukan hanya mengganti ekstensi file.');
   const workbook = await loadVisitWorkbook(bytes);
   const groups: ExcelVisitGroup[] = [];
   let total = 0, payloadSize = 0;
+  const warnings: string[] = [];
   for (const sheet of workbook.worksheets) {
-    if (!sheet.actualRowCount) continue;
+    if (!sheet.actualRowCount || (options.sheetId !== undefined && sheet.id !== options.sheetId)) continue;
+    const description = describeSheet(sheet, options.headerRow);
+    const mapping = options.columns || description.columns;
+    if (!mapping['Nama Usaha']) {
+      if (options.sheetId !== undefined) throw new Error('Petakan kolom Nama Usaha terlebih dahulu.');
+      warnings.push(`Sheet “${sheet.name}” dilewati karena kolom nama usaha tidak dikenali.`); continue;
+    }
     const columns = new Map<string, number>();
-    sheet.getRow(1).eachCell((cell, col) => columns.set(normalized(cell.text), col));
-    const missing = VISIT_EXCEL_HEADERS.filter(header => !columns.has(normalized(header)));
-    if (missing.length) throw new Error(`Sheet “${sheet.name}”: kolom ${missing.join(', ')} belum tersedia. Gunakan format Ekspor data laporan.`);
+    for (const [header, col] of Object.entries(mapping)) if (col && col > 0 && col <= 200) columns.set(normalized(header), col);
     if (sheet.rowCount > 10001) throw new Error(`Sheet “${sheet.name}” melebihi 10.000 baris.`);
     const photos = new Map<number, string[]>();
     for (const image of sheet.getImages()) {
@@ -71,12 +116,12 @@ export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPrev
       items.push(photo); photos.set(row, items);
     }
     const byArea = new Map<string, ExcelVisitGroup>();
-    for (let number = 2; number <= sheet.rowCount; number++) {
+    for (let number = description.headerRow + 1; number <= sheet.rowCount; number++) {
       const row = sheet.getRow(number);
       const value = (header: typeof VISIT_EXCEL_HEADERS[number]) => columns.has(normalized(header)) ? row.getCell(columns.get(normalized(header))!).text.trim() : '';
       if (VISIT_EXCEL_HEADERS.filter(header => header !== 'No').every(header => !value(header)) && !photos.has(number)) continue;
       const fail = (message: string): never => { throw new Error(`Sheet “${sheet.name}”, baris ${number}: ${message}`); };
-      const name = value('Nama Usaha'), area = value('Area Kunjungan');
+      const name = value('Nama Usaha'), area = value('Area Kunjungan') || options.defaultArea?.trim() || sheet.name;
       if (!name || !area) fail('Nama Usaha dan Area Kunjungan wajib diisi.');
       if (name.length > 1000 || area.length > 1000) fail('nama usaha atau area terlalu panjang.');
       const latitude = value('Latitude'), longitude = value('Longitude');
@@ -88,6 +133,18 @@ export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPrev
         return result;
       };
       for (const header of VISIT_EXCEL_HEADERS) if (value(header).length > 65536) fail(`isian ${header} terlalu panjang.`);
+      const rawStatus = normalized(value('Status Kunjungan'));
+      const status = ['visited', 'sudah dikunjungi', 'sudah', 'selesai'].includes(rawStatus) ? 'visited'
+        : ['planned', 'belum dikunjungi', 'belum', 'rencana'].includes(rawStatus) ? 'planned' : options.defaultStatus || 'planned';
+      const rawTime = value('Waktu Kunjungan');
+      let visitedAt: string | undefined;
+      if (rawTime) {
+        const cell = row.getCell(columns.get(normalized('Waktu Kunjungan'))!);
+        const date = cell.value instanceof Date ? cell.value : new Date(rawTime);
+        if (!Number.isFinite(date.getTime())) fail('Waktu Kunjungan tidak valid. Gunakan tanggal Excel atau format ISO, misalnya 2026-11-03T09:30:00+07:00.');
+        visitedAt = date.toISOString();
+      }
+      const productStatus = (header: ImportHeader): Visit['kurStatus'] => ['yes','ya','sudah','ada','1'].includes(normalized(value(header))) ? 'yes' : ['no','tidak','belum','0'].includes(normalized(value(header))) ? 'no' : 'unknown';
       const store: Visit = {
         id: '', visitId: '', name, address: value('Alamat'), category: value('kategori'),
         pic: value('Nama PIC'), url: value('Gmaps'),
@@ -95,18 +152,19 @@ export async function readVisitExcel(bytes: ArrayBuffer): Promise<ExcelVisitPrev
         followUpNotes: value('Follow up'), notes: value('Catatan'), followUp: value('Tindak Lanjut'),
         prospectResult: value('Hasil Prospek'), businessId: value('ID Usaha'), visitArea: area,
         lat: coordinate(latitude, 90), lng: coordinate(longitude, 180),
-        rating: 0, reviewCount: 0, photoUrl: null, status: 'visited', visitPhotos: photos.get(number) || [],
+        rating: 0, reviewCount: 0, photoUrl: null, status, visitedAt, kurStatus: productStatus('KUR'), bwuStatus: productStatus('BWU'), visitPhotos: photos.get(number) || [],
       };
       payloadSize += JSON.stringify(store).length * 3;
       if (++total > 10000 || payloadSize > 20 * 1024 * 1024) fail('data terlalu banyak untuk satu impor. Pisahkan menjadi beberapa file.');
       let group = byArea.get(area);
       if (!group) {
-        group = { name: `Impor ${sheet.name}`.slice(0, 1000), area, stores: [] };
+        group = { name: `Impor ${area}`.slice(0, 1000), area, stores: [] };
         byArea.set(area, group); groups.push(group);
       }
       group.stores.push(store);
     }
   }
   if (!total) throw new Error('File tidak berisi data kunjungan.');
-  return { groups, total };
+  if (groups.some(group => group.stores.some(store => store.status === 'visited' && !store.visitedAt))) warnings.push('Sebagian kunjungan belum memiliki waktu asli. Waktu impor tidak dianggap sebagai waktu kunjungan.');
+  return { groups, total, warnings };
 }

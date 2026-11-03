@@ -3,11 +3,11 @@ import type { Visit } from './canvasing';
 export const VISIT_EXCEL_HEADERS = [
   'No', 'Nama Usaha', 'kategori', 'Alamat', 'Nama PIC', 'Gmaps',
   'Produk', 'LJK', 'Potensi', 'Follow up', 'Catatan', 'Tindak Lanjut',
-  'Foto Kunjungan', 'Hasil Prospek', 'Latitude', 'Longitude', 'Area Kunjungan', 'ID Usaha',
+  'Foto Kunjungan', 'Hasil Prospek', 'Latitude', 'Longitude', 'Area Kunjungan', 'ID Usaha', 'Waktu Kunjungan', 'Status Kunjungan', 'KUR', 'BWU',
 ] as const;
 
-export const PRODUCT_OPTIONS = ['QRIS', 'EDC', 'QR dan EDC', 'Agen', 'Merchant dan Agen'];
-export const POTENTIAL_OPTIONS = [...PRODUCT_OPTIONS, 'Closing'];
+export const PRODUCT_OPTIONS = ['QRIS', 'EDC', 'QR dan EDC', 'Agen', 'Merchant dan Agen', 'KUR', 'BWU'];
+export const POTENTIAL_OPTIONS = [...PRODUCT_OPTIONS, 'KUR dan BWU', 'Lainnya', 'Closing'];
 export const CATEGORY_OPTIONS = [
   'Toko Kelontong', 'Toko Sembako', 'Fotokopi / ATK', 'F&B (Makanan/Minuman)',
   'Kafe', 'Kesehatan/Apotek', 'Optik/Jam/Aksesoris', 'Minimarket/Retail',
@@ -17,7 +17,7 @@ export const CATEGORY_OPTIONS = [
 
 export function visitPaymentDetails(visit: Visit): { product: string; financialInstitutions: string } {
   const agent = visit.agentStatus === 'yes', qris = visit.qrisStatus === 'yes', edc = visit.edcStatus === 'yes';
-  const product = agent && (qris || edc) ? 'Merchant dan Agen' : agent ? 'Agen'
+  const payment = agent && (qris || edc) ? 'Merchant dan Agen' : agent ? 'Agen'
     : qris && edc ? 'QR dan EDC' : qris ? 'QRIS' : edc ? 'EDC' : '';
   const providers = (values: string[]) => values.map(value => value.trim())
     .filter((value, index, all) => value && all.findIndex(other => other.toLowerCase() === value.toLowerCase()) === index)
@@ -30,6 +30,7 @@ export function visitPaymentDetails(visit: Visit): { product: string; financialI
     qris && qrisProviders ? `QRIS - ${qrisProviders}` : '',
     edc && edcProviders ? `EDC - ${edcProviders}` : '',
   ].filter(Boolean).join('\n');
+  const product = [payment, visit.kurStatus === 'yes' ? 'KUR' : '', visit.bwuStatus === 'yes' ? 'BWU' : ''].filter(Boolean).join(', ');
   return { product, financialInstitutions };
 }
 

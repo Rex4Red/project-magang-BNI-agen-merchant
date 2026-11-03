@@ -5,6 +5,7 @@ import styles from "./page.module.css";
 import { getDeviceLocation, locationErrorMessage } from "@/lib/device-location";
 import { CATEGORY_OPTIONS, POTENTIAL_OPTIONS, visitPaymentDetails } from "@/lib/visit-template";
 import { Icon } from "@/components/Icon";
+import { formatVisitTime } from "@/lib/visit-time";
 import ChoiceInput from "./ChoiceInput";
 
 function isBackdrop(event: { target: EventTarget | null; currentTarget: HTMLDialogElement; clientX: number; clientY: number }) {
@@ -55,7 +56,7 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
   store: Visit; listId: string; area: string; onClose: () => void; isNew?: boolean; workspace?: "agen" | "merchant";
 }) {
   const [draft, setDraft] = useState<Visit>({ ...store, address: displayAddress(store.address), category: isNew || !store.category ? '' : displayCategory(store),
-    visitArea: store.visitArea ?? area, agentStatus: store.agentStatus || 'unknown', qrisStatus: store.qrisStatus || 'unknown',
+    status: 'visited', visitArea: store.visitArea ?? area, agentStatus: store.agentStatus || 'unknown', qrisStatus: store.qrisStatus || 'unknown',
     qrisProviders: store.qrisProviders ?? (store.qrisProvider ? [store.qrisProvider] : []), edcStatus: store.edcStatus || 'unknown' });
   const [preview, setPreview] = useState<{ src: string; number: number } | null>(null);
   const [message, setMessage] = useState('');
@@ -68,13 +69,13 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
   const dialog = useRef<HTMLDialogElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   const backdropPressed = useRef(false);
-  const agentStatus = workspace === 'agen' ? draft.agentStatus : 'unknown';
+  const agentStatus = draft.agentStatus;
   const paymentDetails = visitPaymentDetails({ ...draft, agentStatus });
   function patch(values: Partial<Visit>) { setDraft(current => ({ ...current, ...values })); setDirty(true); setMessage(''); }
   function close() { if (busy || locating || saving) return; if (dirty) setDiscardOpen(true); else onClose(); }
   const text = (key: 'name' | 'category' | 'address' | 'pic' | 'visitArea' | 'url', label: string) => key === 'category'
     ? <ChoiceInput label={label} value={draft.category || ''} options={CATEGORY_OPTIONS} onChange={value => patch({ category: value })} />
-    : <label>{label}<input maxLength={key === 'url' ? 2000 : key === 'address' ? 1000 : 150} type="text" value={draft[key] || ''} onChange={event => patch({ [key]: event.target.value })} /></label>;
+    : <label>{label}<input maxLength={key === 'url' ? 2000 : key === 'address' ? 1000 : 150} type="text" required={key === 'name'} value={draft[key] || ''} onChange={event => patch({ [key]: event.target.value })} /></label>;
   async function locate() {
     if (!window.isSecureContext) { setLocationMessage('Lokasi memerlukan HTTPS atau localhost. Buka aplikasi melalui alamat yang aman, lalu coba lagi.'); return; }
     if (!navigator.geolocation) { setLocationMessage('Browser tidak mendukung lokasi.'); return; }
@@ -127,7 +128,7 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
           {text('url', 'Gmaps')}<label>ID Usaha<input readOnly value={draft.businessId || ''} placeholder="Dibuat otomatis saat disimpan" /></label>
         </div></fieldset>
         <fieldset><legend>02 · Lokasi toko</legend><p>Alamat toko hasil pencarian sudah terisi. Untuk toko baru, ambil lokasi ketika berada di toko. Tombol ini mengirim koordinat ke OpenStreetMap untuk mencari alamat.</p><button type="button" className="btn btn-secondary" disabled={locating || busy} onClick={locate}>{locating ? 'Mengambil lokasi…' : 'Ambil lokasi saya & isi alamat'}</button><div className={styles.fieldGrid}><label>Latitude<input readOnly value={draft.lat || ''} /></label><label>Longitude<input readOnly value={draft.lng || ''} /></label></div>{locationMessage && <p role="status">{locationMessage}</p>}{draft.locationAccuracy != null && <small>Akurasi perangkat ±{Math.round(draft.locationAccuracy)} m</small>}</fieldset>
-        <fieldset><legend>03 · {workspace === 'agen' ? 'Agen, QRIS & EDC' : 'QRIS & EDC'}</legend>
+        <fieldset><legend>03 · Produk BNI · QRIS, EDC, KUR & BWU</legend>
         <div className={styles.fieldGrid}>
           {workspace === "agen" && <label>Sudah menjadi agen?<select value={draft.agentStatus} onChange={e => patch({ agentStatus: e.target.value as Visit['agentStatus'] })}><option value="unknown">Belum diketahui</option><option value="yes">Sudah</option><option value="no">Belum</option></select></label>}
           {workspace === 'agen' && draft.agentStatus === 'yes' && <ChoiceInput label="Penyedia agen" value={draft.agentProvider || ''} options={['Agen46 BNI','BRILink','Mandiri Agen','BCA','Bank lain']} onChange={value => patch({ agentProvider: value })} placeholder="Pilih atau ketik penyedia lain" />}
@@ -148,11 +149,12 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
           </div>)}
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => patch({ edcProviders: [...(draft.edcProviders?.length ? draft.edcProviders : ['']), ''] })}>Tambah bank EDC</button>
         </div>}
+        <div className={styles.fieldGrid}>{(['kurStatus', 'bwuStatus'] as const).map(field => <label key={field}>Sudah memiliki {field === 'kurStatus' ? 'KUR' : 'BWU'}?<select value={draft[field] || 'unknown'} onChange={event => patch({ [field]: event.target.value })}><option value="unknown">Belum diketahui</option><option value="yes">Sudah</option><option value="no">Belum</option></select></label>)}</div>
         <div className={`${styles.fieldGrid} ${styles.paymentSummary}`}>
           <label>Produk<input readOnly value={paymentDetails.product} placeholder="Terisi otomatis" /></label>
           <label>LJK<textarea readOnly rows={3} value={paymentDetails.financialInstitutions} placeholder="Terisi otomatis" /></label>
         </div></fieldset>
-        <fieldset><legend>04 · Hasil kunjungan</legend><div className={styles.fieldGrid}>
+        <fieldset><legend>04 · Hasil kunjungan</legend><p>Waktu kunjungan: <strong>{formatVisitTime(draft.visitedAt)}</strong>. Tanggal dan jam WIB dicatat otomatis saat pertama menyimpan status Sudah dikunjungi.</p><div className={styles.fieldGrid}>
           <label>Status kunjungan<select value={draft.status} onChange={e => patch({ status: e.target.value as Visit['status'] })}><option value="planned">Belum dikunjungi</option><option value="visited">Sudah dikunjungi</option></select></label>
           <ChoiceInput label="Potensi" value={draft.potential || ''} options={POTENTIAL_OPTIONS} onChange={value => patch({ potential: value })} placeholder="Pilih atau ketik potensi" />
           <label>Follow up<textarea rows={3} maxLength={1000} value={draft.followUpNotes || ''} onChange={e => patch({ followUpNotes: e.target.value })} placeholder="Catatan perkembangan follow up" /></label>
@@ -178,7 +180,7 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
             <img src={photo} alt={`Foto kunjungan ${index + 1}`} />
           </button><button type="button" className="btn btn-secondary btn-sm" onClick={() => patch({ visitPhotos: draft.visitPhotos?.filter((_, i) => i !== index) })}>Hapus foto {index + 1}</button></div>)}</div></fieldset>
       </div>
-      <footer className={styles.formFooter}>{message && <p role="status">{message}</p>}<small>Semua kolom opsional. Isi yang tersedia, lalu simpan kunjungan.</small><button type="submit" className="btn btn-primary" disabled={busy || locating || saving}>{saving ? 'Menyimpan…' : busy ? 'Memproses foto…' : isNew ? 'Simpan toko baru' : 'Simpan kunjungan'}</button></footer>
+      <footer className={styles.formFooter}>{message && <p role="status">{message}</p>}<small>Nama usaha wajib diisi. Lengkapi data yang tersedia, lalu simpan kunjungan.</small><button type="submit" className="btn btn-primary" disabled={busy || locating || saving}>{saving ? 'Menyimpan…' : busy ? 'Memproses foto…' : isNew ? 'Simpan toko baru' : 'Simpan kunjungan'}</button></footer>
     </form>
     {preview && <PhotoPreview photo={preview} onClose={() => setPreview(null)} />}
     {discardOpen && <DiscardChangesDialog onCancel={() => setDiscardOpen(false)} onDiscard={onClose} />}

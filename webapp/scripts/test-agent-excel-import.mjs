@@ -18,12 +18,16 @@ before(async () => {
     const source = fs.readFileSync(path.join(scriptDirectory, '../src/lib/server', `${name}.ts`), 'utf8');
     const output = ts.transpileModule(source, { compilerOptions: {
       module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
-    } }).outputText.replace(/from ['"]\.\/database['"]/g, 'from "./database.mjs"');
+    } }).outputText.replace(/from ['"]\.\.\/store-identity['"]/g, 'from "./store-identity.mjs"').replace(/from ['"]\.\/database['"]/g, 'from "./database.mjs"');
     const requireShim = `import { createRequire } from 'node:module'; const require=createRequire(${JSON.stringify(path.join(scriptDirectory, '../package.json'))});\n`;
     fs.writeFileSync(path.join(temporary, `${name}.mjs`), requireShim + output);
   }
+  const identity = ts.transpileModule(fs.readFileSync(path.join(scriptDirectory, '../src/lib/store-identity.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  fs.writeFileSync(path.join(temporary, 'store-identity.mjs'), identity);
   const database = await import(pathToFileURL(path.join(temporary, 'database.mjs')).href);
   db = database.database();
+  // Legacy import compatibility is tested with explicit fixtures; these are not application accounts.
+  for (const name of ['agen','merchant']) db.prepare('INSERT INTO accounts(username,name,workspace,salt,password_hash) VALUES(?,?,?,?,?)').run(name, name, name, 'fixture', 'fixture');
   visits = await import(pathToFileURL(path.join(temporary, 'visit-store.mjs')).href);
 });
 beforeEach(() => {

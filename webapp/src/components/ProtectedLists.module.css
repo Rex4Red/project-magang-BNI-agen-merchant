@@ -14,8 +14,8 @@
 .target { display: grid; gap: 5px; padding: 14px 16px; border-radius: 10px; background: #f7f7f8; margin-bottom: 20px; overflow-wrap: anywhere; }
 .target strong { font-size: 14px; }
 .target span { font-size: 12px; color: #71717a; }
-.field { display: grid; gap: 8px; font-size: 13px; font-weight: 500; }
-.field input { width: 100%; min-width: 0; min-height: 46px; padding: 12px 14px; border: 1px solid #a1a1aa; border-radius: 8px; color: #27272a; background: #fff; font-size: 15px; }
+.field { margin-bottom: 16px; display: grid; gap: 8px; font-size: 13px; font-weight: 500; }
+.field input, .field select { width: 100%; min-width: 0; min-height: 46px; padding: 12px 14px; border: 1px solid #a1a1aa; border-radius: 8px; color: #27272a; background: #fff; font-size: 15px; }
 .field input:focus-visible { outline: 2px solid #a84d27; outline-offset: 2px; }
 .hint { margin: 16px 0 0; color: #71717a; font-size: 12px; line-height: 1.6; }
 .error { color: #9d352e; font-size: 13px; margin: 12px 0 0; line-height: 1.6; }
@@ -28,4 +28,4 @@
 .rowText { display: grid; flex: 1; min-width: 0; gap: 5px; overflow-wrap: anywhere; }
 .rowText strong { font-size: 14px; font-weight: 500; }
 .rowText span { font-size: 12px; color: #71717a; }
-@media (max-width: 767px) { .trigger { padding: 8px; min-height: 36px; } .trigger>span { display: none; } .header, .body { padding: 20px; } .footer { padding: 16px 20px; } .field input { font-size: 16px; } }
+@media (max-width: 767px) { .trigger { padding: 8px; min-height: 36px; } .trigger>span { display: none; } .header, .body { padding: 20px; } .footer { padding: 16px 20px; } .field input, .field select { font-size: 16px; } }

@@ -33,6 +33,8 @@ export interface Visit extends Prospect {
   qrisStatus?: "unknown" | "yes" | "no";
   qrisProvider?: string;
   qrisProviders?: string[];
+  kurStatus?: "unknown" | "yes" | "no";
+  bwuStatus?: "unknown" | "yes" | "no";
   edcStatus?: "unknown" | "yes" | "no";
   edcProviders?: string[];
   followUp?: string;
