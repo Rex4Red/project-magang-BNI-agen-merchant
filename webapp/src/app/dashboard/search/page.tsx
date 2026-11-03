@@ -422,7 +422,7 @@ export default function SearchPage() {
       {classificationError && <div className={styles.errorBox}>{classificationError}</div>}
       {saveNotice && <div className={styles.saveNotice} role="status">{saveNotice} <Link href="/dashboard/canvasing">Buka Kunjungan →</Link></div>}
       {saveOpen && <section className={styles.savePanel} aria-label="Simpan daftar canvasing">
-        <div><h2>Simpan ke daftar canvasing</h2><p>{chosen.length} toko dipilih. Daftar disimpan ke database laptop untuk akun yang masuk.</p></div>
+        <div><h2>Simpan ke daftar canvasing</h2><p>{chosen.length} toko dipilih.</p></div>
         <label>Tujuan penyimpanan<select value={targetList} onChange={(event) => setTargetList(event.target.value)}>
           <option value="">Buat daftar baru</option>
           {visitLists.filter(list => !list.locked).map((list) => <option value={list.id} key={list.id}>{list.name} · {list.area}</option>)}

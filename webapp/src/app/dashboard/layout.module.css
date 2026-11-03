@@ -21,10 +21,6 @@
 .header { min-height: 64px; position: sticky; top: 0; z-index: 1050; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #fff; border-bottom: 1px solid #e4e4e7; }
 .breadcrumb { display: flex; gap: 8px; align-items: center; color: #71717a; font-size: 13px; min-width: 0; }
 .breadcrumb strong { color: #27272a; font-size: 14px; font-weight: 500; }
-.databaseStatus { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; min-height: 30px; border-radius: 6px; background: #edf5ef; color: #31624a; font-size: 12px; white-space: nowrap; }
-.databaseStatus i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.databaseStatus[data-state=loading] { background: #f0f0f2; color: #52525b; }
-.databaseStatus[data-state=error] { background: #fcefed; color: #9d352e; }
 .headerRight { display: flex; gap: 16px; align-items: center; }
 .headerAvatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: #27272a; color: #fff; font-size: 13px; }
 .menuButton { display: none; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: #27272a; border-radius: 8px; }
@@ -43,6 +39,6 @@
 @media (max-width: 767px) {
   .header { padding: 0 12px; gap: 8px; } .content { padding: 24px 16px; }
   .breadcrumb>span { display: none; } .breadcrumb strong { font-size: 13px; }
-  .headerRight { gap: 8px; } .headerAvatar { display: none; } .databaseStatus { font-size: 11px; padding: 5px 7px; }
+  .headerRight { gap: 8px; } .headerAvatar { display: none; }
   .footer { padding: 18px 16px; flex-wrap: wrap; }
 }

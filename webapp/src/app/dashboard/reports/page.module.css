@@ -1,9 +1,8 @@
 .page { display: grid; gap: 20px; min-width: 0; color: #27272a; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .header h1 { margin: 0 0 8px; font-size: 30px; font-weight: 600; letter-spacing: -.025em; line-height: 1.2; }
-.header p, .sourceNote, .resultCount { margin: 0; color: #52525b; font-size: 14px; line-height: 1.7; }
+.header p, .resultCount { margin: 0; color: #52525b; font-size: 14px; line-height: 1.7; }
 .headerActions { display: flex; gap: 8px; flex-wrap: wrap; }
-.sourceNote { color: #71717a; font-size: 13px; max-width: 85ch; }
 .filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)) auto; gap: 16px; padding: 20px; align-items: end; border: 1px solid #e4e4e7; border-radius: 12px; background: #fff; }
 .filters label { min-width: 0; display: grid; gap: 6px; font-size: 13px; font-weight: 500; }
 .filters select { min-width: 0; width: 100%; min-height: 44px; padding: 10px 12px; color: #27272a; background: #f7f7f8; border: 1px solid #86868f; border-radius: 8px; font-size: 14px; }

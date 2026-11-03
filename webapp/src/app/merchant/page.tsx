@@ -673,7 +673,7 @@ export default function MerchantPage() {
         <section className={styles.savePanel} aria-label="Simpan daftar canvasing BNI">
           <div>
             <h2>Simpan ke daftar canvasing BNI</h2>
-            <p>{chosen.length} toko dipilih. Daftar tersimpan di database Sistem Canvasing BNI.</p>
+            <p>{chosen.length} toko dipilih.</p>
           </div>
 
           <label>
@@ -1021,7 +1021,6 @@ export default function MerchantPage() {
         <Link href="/merchant/canvasing" className="btn btn-secondary">
           <Icon name="pin" /> Buka kunjungan
         </Link>
-        <small>Daftar tersimpan di database Sistem Canvasing BNI.</small>
       </div>
     </div>
   );

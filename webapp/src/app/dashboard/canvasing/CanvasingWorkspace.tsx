@@ -70,7 +70,6 @@ export default function CanvasingPage({ workspace = "agen" }: { workspace?: "age
       {<button ref={importButton} type="button" className="btn btn-secondary" disabled={loading || !!error} aria-expanded={importing} aria-controls="agent-visit-import" onClick={() => { setImporting(true); setNotice(''); }}><Icon name="clipboard" />Impor Excel</button>}
       <Link className="btn btn-primary" href={searchLink}><Icon name="search" />Eksplorasi toko</Link></div></header>
     {importing && <div id="agent-visit-import"><ImportVisitData onClose={closeImport} onImported={message => { setNotice(message); setView('list'); closeImport(); }} /></div>}
-    <p className={styles.storageNote}>Tersimpan di database laptop untuk akun yang sedang masuk. Bisa dibuka dari perangkat lain saat server menyala.</p>
     {actionError && <p role="alert" className={styles.exportError}>{actionError}</p>}
     {notice && <p role="status" className={styles.actionNotice}>{notice}</p>}
     {error && <p role="alert" className={styles.empty}>{error}</p>}

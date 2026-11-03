@@ -88,7 +88,7 @@ export default function ImportAgentVisits({ onClose, onImported }: {
       {sheets.map(sheet => <label key={sheet.name}><input type="checkbox" checked={selection.includes(sheet.name)} onChange={event => changeSheet(sheet.name, event.target.checked)} />
         <span>{sheet.name}<small>{sheet.rows.toLocaleString('id-ID')} toko</small></span></label>)}
     </fieldset>}
-    {busy && <p role="status" className={styles.status}>{busy === 'save' ? 'Menyimpan kunjungan ke database…' : 'Membaca sheet dan foto kunjungan…'}</p>}
+    {busy && <p role="status" className={styles.status}>{busy === 'save' ? 'Menyimpan kunjungan…' : 'Membaca sheet dan foto kunjungan…'}</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
     {preview && <>
       <p className={styles.summary} role="status">{preview.total.toLocaleString('id-ID')} kunjungan, {preview.groups.length} daerah, {preview.photoCount} foto.</p>

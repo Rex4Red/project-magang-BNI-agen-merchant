@@ -118,7 +118,7 @@ export default function VisitEditor({ store, listId, area, onClose, isNew = fals
           agentStatus, agentProvider: agentStatus === 'yes' ? draft.agentProvider?.trim() : '', qrisProviders, qrisProvider: qrisProviders[0] || '',
           edcProviders: draft.edcStatus === 'yes' ? (draft.edcProviders || []).map(bank => bank.trim()).filter((bank, index, banks) => bank && banks.findIndex(other => other.toLowerCase() === bank.toLowerCase()) === index) : [] };
         if (isNew) { await addManualVisit(listId, { ...saved, url: saved.url || (saved.locationCapturedAt ? `https://www.google.com/maps/search/?api=1&query=${saved.lat},${saved.lng}` : "") }); onClose(); }
-        else { const updated = await updateVisit(listId, store.visitId, saved, draft.updatedAt || null); if (updated) setDraft(updated); setDirty(false); setMessage('Seluruh data kunjungan berhasil disimpan ke database.'); }
+        else { const updated = await updateVisit(listId, store.visitId, saved, draft.updatedAt || null); if (updated) setDraft(updated); setDirty(false); setMessage('Data kunjungan berhasil disimpan.'); }
       } catch (err) { setMessage(err instanceof Error ? err.message : 'Gagal menyimpan.'); }
       finally { setSaving(false); }
     }}>

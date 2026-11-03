@@ -4,7 +4,6 @@
 .header p { color: #52525b; font-size: 14px; line-height: 1.6; margin: 0; }
 .headerActions { display: flex; gap: 8px; flex-wrap: wrap; }
 .eyebrow { color: #71717a; font-size: 13px; }
-.storageNote { color: #71717a; font-size: 13px; margin: 0; line-height: 1.6; }
 .layout { display: grid; grid-template-columns: 230px minmax(0,1fr); gap: 24px; align-items: start; min-width: 0; }
 .lists { display: grid; gap: 10px; min-width: 0; }
 .lists h2 { font-size: 14px; font-weight: 600; margin: 0 0 6px; }

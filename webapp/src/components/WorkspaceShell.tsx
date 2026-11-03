@@ -4,7 +4,6 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession, homeFor, signOut } from "@/lib/session";
 import { Icon } from "./Icon";
-import DatabaseStatus from "./DatabaseStatus";
 import VisitDataWorkspace from "./VisitDataWorkspace";
 import ProtectedLists, { ListAccessProvider } from "./ProtectedLists";
 import styles from "@/app/dashboard/layout.module.css";
@@ -81,7 +80,7 @@ export default function WorkspaceShell({ children, workspace }: { children: Reac
       <header className={styles.header}>
         <button ref={menuButton} className={styles.menuButton} aria-label="Buka menu" aria-controls="workspace-navigation" aria-expanded={menu} onClick={() => setMenu(true)}><Icon name="menu" /></button>
         <div className={styles.breadcrumb}><span>Operasional</span><span>/</span><strong>{currentPage}</strong></div>
-        <div className={styles.headerRight}><ProtectedLists /><DatabaseStatus /><span className={styles.headerAvatar} title={user.name}>{user.name.charAt(0)}</span></div>
+        <div className={styles.headerRight}><ProtectedLists /><span className={styles.headerAvatar} title={user.name}>{user.name.charAt(0)}</span></div>
       </header>
       <main className={styles.content}>{logoutError && <p className={styles.logoutError} role="alert">{logoutError}</p>}<VisitDataWorkspace key={`${user.username}:${user.dataAccount || user.username}`}>{children}</VisitDataWorkspace></main>
       <footer className={styles.footer}><span>BNI · Sistem Canvasing</span></footer>
