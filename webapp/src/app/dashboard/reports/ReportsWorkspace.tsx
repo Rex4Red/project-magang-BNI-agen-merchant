@@ -111,10 +111,6 @@ export default function ReportsWorkspace({ workspace = 'agen' }: { workspace?: '
             <footer className={styles.tableFooter}><span>Menampilkan {count(activePage * PAGE_SIZE + 1)}–{count(Math.min((activePage + 1) * PAGE_SIZE, filtered.length))} dari {count(filtered.length)} usaha</span><div><button type="button" className="btn btn-secondary btn-sm" disabled={!activePage} onClick={() => setPage(activePage - 1)}>Sebelumnya</button><button type="button" className="btn btn-secondary btn-sm" disabled={(activePage + 1) * PAGE_SIZE >= filtered.length} onClick={() => setPage(activePage + 1)}>Berikutnya</button></div></footer>
           </section>
         </>}
-      <details className={styles.rules}><summary>Aturan perhitungan laporan</summary><div>
-        <p>Setiap catatan toko berstatus “Sudah dikunjungi” dihitung sekali per daftar. Seluruh grafik, peta, tabel, insight, dan ekspor mengikuti filter yang sama. Toko tanpa koordinat tetap masuk perhitungan, tetapi tidak diberi titik di peta.</p>
-        <ul><li><strong>Closing:</strong> Potensi atau Tindak Lanjut diisi “Closing”, atau Hasil Prospek diisi “Closing”, “Berhasil menjadi agen”, “Berhasil menjadi merchant”, atau “Berhasil mendaftar”. Status sudah punya agen/QRIS/EDC saja tidak menandakan Closing.</li><li><strong>Perlu tindak lanjut:</strong> Tindak Lanjut terisi selain Closing/tanpa tindak lanjut, atau hasilnya Tertarik, Perlu pertimbangan, Proses pendaftaran, PIC tidak ditemui, atau Belum ditindaklanjuti.</li><li><strong>Tidak ada tindak lanjut:</strong> catatan menyebut tidak perlu tindak lanjut/selesai, atau hasilnya Tidak tertarik, Tidak memenuhi kriteria, Tidak berminat, atau Ditolak tanpa rencana tindak lanjut.</li><li><strong>Belum ditentukan:</strong> informasi belum cukup untuk menentukan status. Nilai custom tetap muncul di kategori dan hasil prospek.</li></ul>
-      </div></details>
     </>}
     {editList && editStore && editing && <VisitEditor key={JSON.stringify(editing)} listId={editList.id} store={editStore} area={editList.area} workspace={workspace} onClose={() => setEditing(null)} />}
   </div>;
