@@ -61,7 +61,6 @@ export default function WorkspaceShell({ children, workspace }: { children: Reac
         <Image src="/bni-logo.svg" alt="BNI" width={200} height={58} priority />
         <div className={styles.brandTitle}><strong>Canvasing BNI</strong></div>
       </a>
-      {user.role === "admin" && <p style={{ padding: "16px", fontSize: "13px" }}>Admin · Kelola seluruh daftar dan password melalui tombol Kelola daftar.</p>}
       <nav aria-label={`Menu ${workspace}`} className={styles.nav}>
         {items.map(item => <a key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className={pathname === item.href ? styles.active : ""}
           onClick={event => { event.preventDefault(); router.push(item.href); setMenu(false); }}><Icon name={item.icon} />{item.label}</a>)}
