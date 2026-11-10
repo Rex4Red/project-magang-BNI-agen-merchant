@@ -4,11 +4,11 @@ function placeKey(url: string) {
   try {
     const parsed = new URL(url);
     const key = parsed.searchParams.get("query_place_id") || parsed.searchParams.get("cid") || parsed.searchParams.get("ftid");
-    return key || decodeURIComponent(url).match(/!1s([^!]+)/)?.[1] || "";
+    return key || decodeURIComponent(url).match(/!1s([^!/?#]+)/)?.[1] || "";
   } catch { return ""; }
 }
 export function sameStore(a: Prospect, b: Prospect) {
-  if (a.id && b.id && a.id === b.id) return true;
+  // Search IDs such as merchant-1 restart each run; they are not place identifiers.
   const ak = placeKey(a.url), bk = placeKey(b.url);
   if (ak && bk && ak === bk) return true;
   if (!clean(a.name) || clean(a.name) !== clean(b.name)) return false;
@@ -17,5 +17,6 @@ export function sameStore(a: Prospect, b: Prospect) {
     const dy = (a.lat - b.lat) * 111320, dx = (a.lng - b.lng) * 111320 * Math.cos(a.lat * Math.PI / 180);
     return Math.hypot(dx, dy) <= 40;
   }
-  return clean(a.address) === clean(b.address);
+  const address = clean(a.address);
+  return !!address && address === clean(b.address);
 }

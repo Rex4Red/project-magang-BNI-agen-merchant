@@ -81,18 +81,27 @@ export default function MerchantPage() {
   const [saving, setSaving] = useState(false);
   const [focusRequest, setFocusRequest] = useState(0);
 
-  const { lists: visitLists, error: storageError } = useVisitLists();
+  const { lists: visitLists, error: storageError, loading: storageLoading } = useVisitLists();
 
-  const [savedMatches, setSavedMatches] = useState<{ id: string; lists: string[] }[]>([]);
-  const [duplicateError, setDuplicateError] = useState("");
+  const [duplicateCheck, setDuplicateCheck] = useState<{
+    results: MerchantStore[]; listsVersion: string; matches: { id: string; lists: string[] }[]; error: string;
+  } | null>(null);
   const listsVersion = visitLists.map(list => `${list.id}:${list.updatedAt}`).join("|");
   useEffect(() => {
     let cancelled = false;
-    if (!results.length || storageError) return;
-    findSavedStores(results).then(matches => { if (!cancelled) { setSavedMatches(matches); setDuplicateError(""); } })
-      .catch(() => { if (!cancelled) setDuplicateError("Pemeriksaan toko tersimpan belum tersedia. Duplikat tetap diperiksa saat menyimpan."); });
+    if (!results.length || storageError || storageLoading) return;
+    findSavedStores(results).then(matches => {
+      if (!cancelled) setDuplicateCheck({ results, listsVersion, matches, error: "" });
+    }).catch(() => {
+      if (!cancelled) setDuplicateCheck({ results, listsVersion, matches: [],
+        error: "Pemeriksaan toko tersimpan belum tersedia. Duplikat tetap diperiksa saat menyimpan." });
+    });
     return () => { cancelled = true; };
-  }, [results, listsVersion, storageError]);
+  }, [results, listsVersion, storageError, storageLoading]);
+  const currentDuplicateCheck = !storageError && !storageLoading && duplicateCheck?.results === results
+    && duplicateCheck.listsVersion === listsVersion ? duplicateCheck : null;
+  const savedMatches = currentDuplicateCheck?.matches || [];
+  const duplicateError = currentDuplicateCheck?.error || "";
   const savedIn = (id: string) => savedMatches.find(match => match.id === id)?.lists || [];
 
   const mapContainer = useRef<HTMLDivElement>(null);

@@ -10,7 +10,7 @@ import ts from 'typescript';
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'bni-access-test-'));
 process.env.BNI_DATABASE_PATH = path.join(temporary, 'test.sqlite');
-let auth, visits, access, excel, importer;
+let auth, visits, access, excel, importer, identity;
 before(async () => {
   const modules = { database: 'server/database', 'visit-store': 'server/visit-store', 'list-access': 'server/list-access',
     'visit-excel': 'visit-excel', 'visit-template': 'visit-template', 'visit-excel-import': 'visit-excel-import', 'store-identity': 'store-identity' };
@@ -34,6 +34,7 @@ before(async () => {
   access = await import(pathToFileURL(path.join(temporary, 'list-access.mjs')).href);
   excel = await import(pathToFileURL(path.join(temporary, 'visit-excel.mjs')).href);
   importer = await import(pathToFileURL(path.join(temporary, 'visit-excel-import.mjs')).href);
+  identity = await import(pathToFileURL(path.join(temporary, 'store-identity.mjs')).href);
 });
 after(() => {
   auth?.database().close();
@@ -141,6 +142,33 @@ test('global duplicate checks include protected lists, tolerate coordinate drift
     name: 'Daftar kedua', area: 'Yogyakarta', source: { mode: 'area' }, stores: [item] } });
   assert.throws(() => saveStore({ ...store, id: 'other-result', lat: store.lat + .00001 }), /Semua toko sudah tersimpan/);
   assert.equal(saveStore({ ...store, id: 'branch-result', lat: store.lat + .01 }).added, 1);
+});
+
+test('reused search IDs do not mark different stores as saved or block their persistence', () => {
+  const item = (name, lat) => ({ id: 'merchant-1', name, address: `Alamat ${name}`, lat, lng: 110.4, url: '' });
+  const saveStore = store => visits.visitCommand('canvaser', { action: 'save-list', commandId: randomUUID(), input: {
+    name: store.name, area: 'Area regresi ID', source: { mode: 'map' }, stores: [store] } });
+  const original = item('Usaha awal regresi ID', -7.7);
+  const another = item('Usaha baru regresi ID', -7.71);
+  const branch = { ...original, lat: -7.72 };
+  assert.equal(identity.sameStore(original, another), false);
+  assert.equal(identity.sameStore(original, branch), false);
+  assert.equal(saveStore(original).added, 1);
+  assert.equal(saveStore(another).added, 1);
+  assert.equal(saveStore(branch).added, 1);
+  const saved = visits.readLists('canvaser').flatMap(list => list.stores);
+  assert.equal(saved.filter(store => store.id === 'merchant-1').length, 3);
+  assert.throws(() => saveStore({ ...original, id: 'merchant-98', lat: original.lat + .00001 }), /Semua toko sudah tersimpan/);
+});
+
+test('store matching uses place keys or name and location, rather than blank fields or search indexes', () => {
+  const item = { id: 'merchant-1', name: 'Toko uji identitas', address: '', lat: 0, lng: 0, url: '' };
+  assert.equal(identity.sameStore(item, { ...item }), false);
+  assert.equal(identity.sameStore({ ...item, address: 'Jl. Uji 1' }, { ...item, id: 'merchant-9', address: 'Jl. Uji 1' }), true);
+  assert.equal(identity.sameStore({ ...item, address: 'Jl. Uji 1' }, { ...item, address: 'Jl. Uji 2' }), false);
+  assert.equal(identity.sameStore({ ...item, lat: -7.7, lng: 110.4 }, { ...item, id: 'merchant-9', lat: -7.70001, lng: 110.4 }), true);
+  assert.equal(identity.sameStore({ ...item, url: 'https://www.google.com/maps/place/Old/data=!1splace-fixture?entry=ttu' },
+    { ...item, id: 'merchant-9', name: 'Nama toko diperbarui', url: 'https://www.google.com/maps/search/?api=1&query_place_id=place-fixture' }), true);
 });
 
 test('rename and password changes revoke grants; stale changes fail; deleting a list cascades', () => {
